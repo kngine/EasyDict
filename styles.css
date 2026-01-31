@@ -507,7 +507,6 @@ a {
 .notebook-add-bar {
   display: flex;
   align-items: center;
-  margin-top: var(--space-1);
 }
 
 .notebook-add-btn {
