@@ -432,11 +432,119 @@ function generatePotentialForms(word) {
 }
 
 /**
- * Verify a word exists and get its part of speech using dictionary API
+ * Determine the word form type based on ending patterns
+ * @param {string} word - The word to analyze
+ * @param {string} baseWord - The original search word for comparison
+ * @returns {Object} Form info with pos, label, and icon
+ */
+function getWordFormInfo(word, baseWord) {
+  const w = word.toLowerCase();
+  const base = baseWord.toLowerCase();
+  
+  // Verb forms (check specific forms first)
+  if (w.endsWith('ing')) {
+    return { pos: 'verb', label: 'Present Participle', icon: '-ing' };
+  }
+  if (w.endsWith('ed') && (w.startsWith(base.slice(0, 3)) || base.endsWith('e'))) {
+    return { pos: 'verb', label: 'Past Tense', icon: 'Past' };
+  }
+  if (w === base + 'd' || w === base.slice(0, -1) + 'ed') {
+    return { pos: 'verb', label: 'Past Tense', icon: 'Past' };
+  }
+  
+  // Comparative/Superlative (adjective forms)
+  if (w.endsWith('est')) {
+    return { pos: 'adjective', label: 'Superlative', icon: '-est' };
+  }
+  if (w.endsWith('er') && w.length < base.length + 4 && !w.endsWith('ier')) {
+    // Check if this is likely a comparative vs a noun (teacher)
+    if (w === base + 'r' || w === base + 'er' || w === base.slice(0, -1) + 'ier') {
+      return { pos: 'adjective', label: 'Comparative', icon: '-er' };
+    }
+  }
+  if (w.endsWith('ier') && base.endsWith('y')) {
+    return { pos: 'adjective', label: 'Comparative', icon: '-er' };
+  }
+  if (w.endsWith('iest') && base.endsWith('y')) {
+    return { pos: 'adjective', label: 'Superlative', icon: '-est' };
+  }
+  
+  // Adverb patterns
+  if (w.endsWith('ly')) {
+    return { pos: 'adverb', label: 'Adverb', icon: 'Adv' };
+  }
+  if (w.endsWith('ily')) {
+    return { pos: 'adverb', label: 'Adverb', icon: 'Adv' };
+  }
+  if (w.endsWith('ally')) {
+    return { pos: 'adverb', label: 'Adverb', icon: 'Adv' };
+  }
+  
+  // Adjective patterns
+  if (w.endsWith('ive') || w.endsWith('ative')) {
+    return { pos: 'adjective', label: 'Adjective', icon: 'Adj' };
+  }
+  if (w.endsWith('ous') || w.endsWith('ious') || w.endsWith('eous')) {
+    return { pos: 'adjective', label: 'Adjective', icon: 'Adj' };
+  }
+  if (w.endsWith('able') || w.endsWith('ible')) {
+    return { pos: 'adjective', label: 'Adjective', icon: 'Adj' };
+  }
+  if (w.endsWith('ful') || w.endsWith('less')) {
+    return { pos: 'adjective', label: 'Adjective', icon: 'Adj' };
+  }
+  if (w.endsWith('al') && w.length > 4) {
+    return { pos: 'adjective', label: 'Adjective', icon: 'Adj' };
+  }
+  if (w.endsWith('ic') || w.endsWith('ical')) {
+    return { pos: 'adjective', label: 'Adjective', icon: 'Adj' };
+  }
+  
+  // Noun patterns
+  if (w.endsWith('tion') || w.endsWith('sion')) {
+    return { pos: 'noun', label: 'Noun', icon: 'N' };
+  }
+  if (w.endsWith('ment')) {
+    return { pos: 'noun', label: 'Noun', icon: 'N' };
+  }
+  if (w.endsWith('ness')) {
+    return { pos: 'noun', label: 'Noun', icon: 'N' };
+  }
+  if (w.endsWith('ity')) {
+    return { pos: 'noun', label: 'Noun', icon: 'N' };
+  }
+  if (w.endsWith('ance') || w.endsWith('ence')) {
+    return { pos: 'noun', label: 'Noun', icon: 'N' };
+  }
+  if (w.endsWith('er') || w.endsWith('or')) {
+    // Person nouns (creator, teacher)
+    return { pos: 'noun', label: 'Noun (person)', icon: 'N' };
+  }
+  if (w.endsWith('ist') || w.endsWith('ism')) {
+    return { pos: 'noun', label: 'Noun', icon: 'N' };
+  }
+  
+  // Default verb patterns
+  if (w.endsWith('ize') || w.endsWith('ise')) {
+    return { pos: 'verb', label: 'Verb', icon: 'V' };
+  }
+  if (w.endsWith('ify')) {
+    return { pos: 'verb', label: 'Verb', icon: 'V' };
+  }
+  if (w.endsWith('ate') && w.length > 5) {
+    return { pos: 'verb', label: 'Verb', icon: 'V' };
+  }
+  
+  return null; // Unknown
+}
+
+/**
+ * Verify a word exists and get its form info using dictionary API
  * @param {string} word - Word to verify
+ * @param {string} baseWord - Original search word for context
  * @returns {Promise<Object|null>} Word info or null if not found
  */
-async function verifyWordForm(word) {
+async function verifyWordForm(word, baseWord) {
   try {
     const response = await fetch(`${ENGLISH_API_BASE}${encodeURIComponent(word)}`);
     if (!response.ok) return null;
@@ -444,30 +552,57 @@ async function verifyWordForm(word) {
     const data = await response.json();
     if (!data || !data[0]) return null;
     
-    // Get the primary part of speech
     const entry = data[0];
     const meanings = entry.meanings || [];
     
     if (meanings.length === 0) return null;
     
-    // Map parts of speech to display labels
-    const posMap = {
-      'noun': { label: 'Noun', icon: 'N', order: 1 },
-      'verb': { label: 'Verb', icon: 'V', order: 2 },
-      'adjective': { label: 'Adjective', icon: 'Adj', order: 3 },
-      'adverb': { label: 'Adverb', icon: 'Adv', order: 4 }
+    // Order for sorting
+    const orderMap = {
+      'noun': 1,
+      'verb': 2,
+      'adjective': 3,
+      'adverb': 4
     };
     
-    const pos = meanings[0].partOfSpeech?.toLowerCase();
-    const posInfo = posMap[pos];
+    // Get form info based on word pattern
+    const formInfo = getWordFormInfo(word, baseWord);
     
-    if (!posInfo) return null;
+    // Collect all parts of speech from API
+    const apiPOSList = meanings.map(m => m.partOfSpeech?.toLowerCase()).filter(Boolean);
+    
+    let label, icon, pos;
+    
+    if (formInfo && apiPOSList.includes(formInfo.pos)) {
+      // Use our detected form info if API confirms the POS
+      label = formInfo.label;
+      icon = formInfo.icon;
+      pos = formInfo.pos;
+    } else if (formInfo) {
+      // Trust the pattern-based detection
+      label = formInfo.label;
+      icon = formInfo.icon;
+      pos = formInfo.pos;
+    } else {
+      // Fall back to API's first result with generic labels
+      pos = apiPOSList[0];
+      const genericLabels = {
+        'noun': { label: 'Noun', icon: 'N' },
+        'verb': { label: 'Verb', icon: 'V' },
+        'adjective': { label: 'Adjective', icon: 'Adj' },
+        'adverb': { label: 'Adverb', icon: 'Adv' }
+      };
+      const generic = genericLabels[pos];
+      if (!generic) return null;
+      label = generic.label;
+      icon = generic.icon;
+    }
     
     return {
       word: entry.word,
-      partOfSpeech: posInfo.label,
-      icon: posInfo.icon,
-      order: posInfo.order
+      partOfSpeech: label,
+      icon: icon,
+      order: orderMap[pos] || 5
     };
   } catch {
     return null;
@@ -492,7 +627,7 @@ export async function fetchWordFamily(word) {
     const potentialForms = generatePotentialForms(trimmedWord);
     
     // Verify forms in parallel (check all generated forms)
-    const verificationPromises = potentialForms.map(form => verifyWordForm(form));
+    const verificationPromises = potentialForms.map(form => verifyWordForm(form, trimmedWord));
     const results = await Promise.all(verificationPromises);
     
     // Filter valid results and remove duplicates
