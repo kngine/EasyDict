@@ -30,6 +30,7 @@ const notebookBtn = document.getElementById('notebookBtn');
 const notebookSection = document.getElementById('notebookSection');
 const notebookList = document.getElementById('notebookList');
 const clearNotebookBtn = document.getElementById('clearNotebookBtn');
+const notebookAddBar = document.getElementById('notebookAddBar');
 const notebookAddBtn = document.getElementById('notebookAddBtn');
 const notebookAddLabel = document.getElementById('notebookAddLabel');
 
@@ -157,7 +158,7 @@ function goBackToHome(panel) {
   handleInputChange();
   backBtn.style.display = 'none';
   shareBtn.style.display = 'none';
-  notebookAddBtn.style.display = 'none';
+  if (notebookAddBar) notebookAddBar.style.display = 'none';
   window.history.replaceState({}, '', window.location.pathname);
 
   if (panel === 'notebook') {
@@ -733,7 +734,7 @@ function hideResults() {
   resultsContainer.style.display = 'none';
   backBtn.style.display = 'none';
   shareBtn.style.display = 'none';
-  notebookAddBtn.style.display = 'none';
+  if (notebookAddBar) notebookAddBar.style.display = 'none';
 }
 
 function showEmptyState() {

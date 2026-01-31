@@ -495,55 +495,57 @@ a {
   border-radius: var(--radius-xl);
   color: white;
   box-shadow: var(--shadow-lg);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
 }
 
 .word-header-content {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  flex: 1;
-  min-width: 0;
+}
+
+/* Add to Notebook bar - visible row below word header */
+.notebook-add-bar {
+  display: flex;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  margin-top: var(--space-3);
 }
 
 .notebook-add-btn {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  background: rgba(255, 255, 255, 0.2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--primary-500);
   color: white;
   border-radius: var(--radius-lg);
   font-size: var(--text-sm);
   font-weight: 600;
   transition: all var(--transition-fast);
-  flex-shrink: 0;
+  width: 100%;
+  justify-content: center;
 }
 
 .notebook-add-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.02);
+  background: var(--primary-600);
+  transform: scale(1.01);
 }
 
 .notebook-add-btn.in-notebook {
-  background: rgba(255, 255, 255, 0.35);
+  background: var(--gray-500);
+}
+
+.notebook-add-btn.in-notebook:hover {
+  background: var(--gray-600);
 }
 
 .notebook-add-icon {
-  width: 18px;
-  height: 18px;
-}
-
-@media (max-width: 480px) {
-  .notebook-add-btn span {
-    display: none;
-  }
-  .notebook-add-btn {
-    padding: var(--space-2);
-  }
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
 }
 
 .result-word {
