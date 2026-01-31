@@ -47,6 +47,14 @@
               <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
             </svg>
           </button>
+          <button id="notebookBtn" class="header-btn notebook-btn" title="Notebook">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              <line x1="8" y1="6" x2="16" y2="6"/>
+              <line x1="8" y1="10" x2="16" y2="10"/>
+            </svg>
+          </button>
           <button id="historyBtn" class="header-btn history-btn" title="Search History">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"/>
@@ -131,6 +139,15 @@
               </button>
             </div>
           </div>
+          <button id="notebookAddBtn" class="notebook-add-btn" title="Add to Notebook" style="display: none;">
+            <svg class="notebook-add-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              <line x1="12" y1="8" x2="12" y2="16"/>
+              <line x1="8" y1="12" x2="16" y2="12"/>
+            </svg>
+            <span id="notebookAddLabel">Add to Notebook</span>
+          </button>
         </div>
 
         <!-- Chinese Translation Card -->
@@ -231,6 +248,24 @@
             <button id="clearHistoryBtn" class="clear-history-btn">Clear All</button>
           </div>
           <ul id="historyList" class="history-list"></ul>
+        </div>
+
+        <!-- Notebook -->
+        <div id="notebookSection" class="notebook-section" style="display: none;">
+          <div class="notebook-header">
+            <h3 class="notebook-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                <line x1="8" y1="6" x2="16" y2="6"/>
+                <line x1="8" y1="10" x2="16" y2="10"/>
+              </svg>
+              Notebook
+            </h3>
+            <p class="notebook-subtitle">Words you're learning</p>
+            <button id="clearNotebookBtn" class="clear-notebook-btn">Clear All</button>
+          </div>
+          <ul id="notebookList" class="notebook-list"></ul>
         </div>
       </div>
     </main>

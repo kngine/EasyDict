@@ -26,6 +26,12 @@ const welcomeSection = document.getElementById('welcomeSection');
 const historySection = document.getElementById('historySection');
 const historyList = document.getElementById('historyList');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+const notebookBtn = document.getElementById('notebookBtn');
+const notebookSection = document.getElementById('notebookSection');
+const notebookList = document.getElementById('notebookList');
+const clearNotebookBtn = document.getElementById('clearNotebookBtn');
+const notebookAddBtn = document.getElementById('notebookAddBtn');
+const notebookAddLabel = document.getElementById('notebookAddLabel');
 
 // Result elements
 const resultWord = document.getElementById('resultWord');
@@ -47,14 +53,17 @@ const googleLink = document.getElementById('googleLink');
 let currentResult = null;
 let currentAudioUrl = null;
 let searchHistory = [];
+let notebook = [];
 
 // Constants
 const MAX_HISTORY_SIZE = 20;
 const HISTORY_STORAGE_KEY = 'easydict_search_history';
+const NOTEBOOK_STORAGE_KEY = 'easydict_notebook';
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   loadSearchHistory();
+  loadNotebook();
   setupEventListeners();
   registerServiceWorker();
   checkUrlForWord();
@@ -111,10 +120,16 @@ function setupEventListeners() {
   backBtn.addEventListener('click', goBackToHome);
 
   // History button - show history panel
-  historyBtn.addEventListener('click', goBackToHome);
+  historyBtn.addEventListener('click', () => goBackToHome('history'));
+
+  // Notebook button - show notebook panel
+  notebookBtn.addEventListener('click', () => goBackToHome('notebook'));
 
   // Share button
   shareBtn.addEventListener('click', handleShare);
+
+  // Add to Notebook button
+  notebookAddBtn.addEventListener('click', handleNotebookToggle);
 
   // Error dismiss
   dismissError.addEventListener('click', hideError);
@@ -125,12 +140,16 @@ function setupEventListeners() {
 
   // History
   clearHistoryBtn.addEventListener('click', clearHistory);
+
+  // Notebook
+  clearNotebookBtn.addEventListener('click', clearNotebook);
 }
 
 /**
- * Go back to home/history view
+ * Go back to home view, optionally showing history or notebook
+ * @param {'history'|'notebook'} panel - Which panel to show (default: welcome or history if has items)
  */
-function goBackToHome() {
+function goBackToHome(panel) {
   hideResults();
   hideError();
   showEmptyState();
@@ -138,8 +157,35 @@ function goBackToHome() {
   handleInputChange();
   backBtn.style.display = 'none';
   shareBtn.style.display = 'none';
-  // Clear URL parameter
+  notebookAddBtn.style.display = 'none';
   window.history.replaceState({}, '', window.location.pathname);
+
+  if (panel === 'notebook') {
+    welcomeSection.style.display = 'none';
+    historySection.style.display = 'none';
+    notebookSection.style.display = 'block';
+    updateNotebookDisplay();
+  } else if (panel === 'history') {
+    notebookSection.style.display = 'none';
+    updateHistoryDisplay();
+    if (searchHistory.length > 0) {
+      welcomeSection.style.display = 'none';
+      historySection.style.display = 'block';
+    } else {
+      welcomeSection.style.display = 'block';
+      historySection.style.display = 'none';
+    }
+  } else {
+    notebookSection.style.display = 'none';
+    updateHistoryDisplay();
+    if (searchHistory.length > 0) {
+      welcomeSection.style.display = 'none';
+      historySection.style.display = 'block';
+    } else {
+      welcomeSection.style.display = 'block';
+      historySection.style.display = 'none';
+    }
+  }
 }
 
 /**
@@ -687,6 +733,7 @@ function hideResults() {
   resultsContainer.style.display = 'none';
   backBtn.style.display = 'none';
   shareBtn.style.display = 'none';
+  notebookAddBtn.style.display = 'none';
 }
 
 function showEmptyState() {
@@ -786,5 +833,96 @@ function updateHistoryDisplay() {
   `).join('');
 }
 
+// Notebook functions
+function loadNotebook() {
+  try {
+    const stored = localStorage.getItem(NOTEBOOK_STORAGE_KEY);
+    if (stored) {
+      notebook = JSON.parse(stored);
+    }
+  } catch (error) {
+    console.error('Failed to load notebook:', error);
+    notebook = [];
+  }
+}
+
+function saveNotebook() {
+  try {
+    localStorage.setItem(NOTEBOOK_STORAGE_KEY, JSON.stringify(notebook));
+  } catch (error) {
+    console.error('Failed to save notebook:', error);
+  }
+}
+
+function addToNotebook(word) {
+  const w = word.trim();
+  if (!w) return;
+  const key = w.toLowerCase();
+  if (notebook.some(item => item.toLowerCase() === key)) return;
+  notebook.unshift(w);
+  saveNotebook();
+  updateNotebookDisplay();
+  updateNotebookButtonState();
+}
+
+function removeFromNotebook(word) {
+  const key = word.toLowerCase();
+  notebook = notebook.filter(item => item.toLowerCase() !== key);
+  saveNotebook();
+  updateNotebookDisplay();
+  updateNotebookButtonState();
+}
+
+function clearNotebook() {
+  notebook = [];
+  saveNotebook();
+  updateNotebookDisplay();
+}
+
+function updateNotebookDisplay() {
+  if (notebook.length === 0) {
+    notebookList.innerHTML = '<li class="notebook-empty">No words in your notebook yet. Search for a word and tap "Add to Notebook".</li>';
+    clearNotebookBtn.style.display = 'none';
+    return;
+  }
+  clearNotebookBtn.style.display = 'block';
+  notebookList.innerHTML = notebook.map(word => `
+    <li class="notebook-item" onclick="searchWord('${word.replace(/'/g, "\\'")}')">
+      <svg class="notebook-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      </svg>
+      <span class="notebook-item-word">${word}</span>
+      <button class="notebook-item-delete" onclick="event.stopPropagation(); removeFromNotebook('${word.replace(/'/g, "\\'")}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </li>
+  `).join('');
+}
+
+function updateNotebookButtonState() {
+  const word = currentResult?.word || currentResult?.chineseWord;
+  if (!word) return;
+  const key = word.trim().toLowerCase();
+  const inNotebook = notebook.some(item => item.toLowerCase() === key);
+  notebookAddBtn.classList.toggle('in-notebook', inNotebook);
+  notebookAddLabel.textContent = inNotebook ? 'Remove from Notebook' : 'Add to Notebook';
+}
+
+function handleNotebookToggle() {
+  const word = currentResult?.word || currentResult?.chineseWord;
+  if (!word) return;
+  const key = word.trim().toLowerCase();
+  const inNotebook = notebook.some(item => item.toLowerCase() === key);
+  if (inNotebook) {
+    removeFromNotebook(word.trim());
+  } else {
+    addToNotebook(word.trim());
+  }
+}
+
 // Expose to global scope for inline handlers
 window.removeFromHistory = removeFromHistory;
+window.removeFromNotebook = removeFromNotebook;
