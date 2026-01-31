@@ -1251,21 +1251,26 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: white;
+  background: linear-gradient(135deg, #4285F4 0%, #3367D6 100%);
   padding: var(--space-4);
   border-radius: var(--radius-xl);
-  border: 1px solid var(--gray-200);
-  box-shadow: var(--shadow-sm);
+  border: none;
+  box-shadow: var(--shadow-md);
   text-decoration: none;
-  color: var(--gray-700);
+  color: white;
   transition: all var(--transition-fast);
-  margin-top: var(--space-3);
+  margin-top: var(--space-4);
+  cursor: pointer;
 }
 
 .google-link-card:hover {
-  border-color: var(--primary-300);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, #5a95f5 0%, #4285F4 100%);
+}
+
+.google-link-card:active {
+  transform: translateY(0);
 }
 
 .google-link-card .card-header {
@@ -1275,18 +1280,26 @@ a {
 .google-link-card .card-icon {
   display: flex;
   align-items: center;
+  background: white;
+  padding: 6px;
+  border-radius: var(--radius-md);
+}
+
+.google-link-card .card-title {
+  color: white;
+  font-weight: 600;
 }
 
 .google-link-arrow {
-  width: 20px;
-  height: 20px;
-  color: var(--gray-400);
+  width: 24px;
+  height: 24px;
+  color: rgba(255, 255, 255, 0.8);
   transition: all var(--transition-fast);
 }
 
 .google-link-card:hover .google-link-arrow {
-  color: var(--primary-500);
-  transform: translateX(3px);
+  color: white;
+  transform: translateX(4px);
 }
 
 /* ============================================
