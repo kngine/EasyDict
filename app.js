@@ -606,18 +606,30 @@ function displayWordUsage(result) {
     return;
   }
   
-  const html = analysis.suggestions.map(suggestion => `
+  // Sort: appropriate (good) usages first, then alternatives
+  const sortedSuggestions = [...analysis.suggestions].sort((a, b) => {
+    if (a.isAppropriate && !b.isAppropriate) return -1;
+    if (!a.isAppropriate && b.isAppropriate) return 1;
+    return 0;
+  });
+  
+  const html = sortedSuggestions.map(suggestion => `
     <div class="usage-scenario ${suggestion.isAppropriate ? 'appropriate' : 'alternative'}">
-      <span class="usage-icon">${suggestion.scenario.icon}</span>
-      <div class="usage-content">
-        <span class="usage-scenario-name">${suggestion.scenario.label}</span>
-        <span class="usage-scenario-chinese">${suggestion.scenario.chinese}</span>
+      <div class="usage-status-badge ${suggestion.isAppropriate ? 'good' : 'consider'}">
+        ${suggestion.isAppropriate ? '✓ Good' : '△ Consider'}
+      </div>
+      <div class="usage-main">
+        <div class="usage-header">
+          <span class="usage-icon">${suggestion.scenario.icon}</span>
+          <div class="usage-titles">
+            <span class="usage-scenario-name">${suggestion.scenario.label}</span>
+            <span class="usage-scenario-chinese">${suggestion.scenario.chinese}</span>
+          </div>
+        </div>
         <p class="usage-description">${suggestion.scenario.description}</p>
-        ${suggestion.isAppropriate ? `
-          <span class="usage-check">✓ Appropriate</span>
-        ` : suggestion.suggestedWord ? `
+        ${!suggestion.isAppropriate && suggestion.suggestedWord ? `
           <div class="usage-suggestion">
-            <span class="suggestion-label">Try:</span>
+            <span class="suggestion-label">Better choice:</span>
             <span class="suggestion-word" onclick="searchWord('${suggestion.suggestedWord}')">${suggestion.suggestedWord}</span>
           </div>
         ` : ''}

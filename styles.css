@@ -909,47 +909,82 @@ a {
 
 .usage-scenario {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  transition: background var(--transition-fast);
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
 }
 
 .usage-scenario.appropriate {
-  background: #D1FAE5;
+  background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
+  border-color: #A7F3D0;
 }
 
 .usage-scenario.alternative {
   background: var(--gray-50);
+  border-color: var(--gray-200);
+}
+
+.usage-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  width: fit-content;
+}
+
+.usage-status-badge.good {
+  background: #10B981;
+  color: white;
+}
+
+.usage-status-badge.consider {
+  background: var(--gray-400);
+  color: white;
+}
+
+.usage-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.usage-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .usage-icon {
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
   flex-shrink: 0;
 }
 
-.usage-content {
-  flex: 1;
+.usage-titles {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
 }
 
 .usage-scenario-name {
   font-weight: 600;
   color: var(--gray-800);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
 }
 
 .usage-scenario-chinese {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--gray-500);
 }
 
 .usage-description {
   font-size: var(--text-sm);
   color: var(--gray-600);
+  line-height: 1.5;
 }
 
 .usage-suggestion {
@@ -957,32 +992,31 @@ a {
   align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: white;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--gray-300);
 }
 
 .suggestion-label {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--gray-500);
 }
 
 .suggestion-word {
-  padding: var(--space-1) var(--space-2);
-  background: var(--primary-100);
-  color: var(--primary-700);
+  padding: var(--space-1) var(--space-3);
+  background: var(--primary-500);
+  color: white;
   border-radius: var(--radius-full);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-fast);
 }
 
 .suggestion-word:hover {
-  background: var(--primary-200);
-}
-
-.usage-check {
-  color: var(--success);
-  font-weight: 600;
-  font-size: var(--text-sm);
+  background: var(--primary-600);
+  transform: scale(1.05);
 }
 
 /* ============================================
