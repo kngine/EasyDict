@@ -1,4 +1,4 @@
-const CACHE_NAME = 'easydict-v28';
+const CACHE_NAME = 'easydict-v29';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
