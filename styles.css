@@ -507,10 +507,6 @@ a {
 .notebook-add-bar {
   display: flex;
   align-items: center;
-  padding: var(--space-3) var(--space-4);
-  background: var(--gray-50);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-lg);
   margin-top: var(--space-3);
 }
 
