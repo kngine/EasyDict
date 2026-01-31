@@ -3,9 +3,9 @@
  * English-Chinese Dictionary with Word Analysis
  */
 
-import { lookupWord, lookupChineseWord, isChinese, getBestAudioUrl, getPhoneticText, getAllSynonyms, DictionaryError } from './js/dictionary-service.js';
+import { lookupWord, lookupChineseWord, isChinese, getBestAudioUrl, getPhoneticText, getAllSynonyms, fetchWordFamily, DictionaryError } from './js/dictionary-service.js';
 import { audioPlayer } from './js/audio-player.js';
-import { analyzeWordForms, WordType } from './js/word-forms-analyzer.js';
+// word-forms-analyzer.js no longer used - replaced by API-based Word Family
 import { analyzeWordRoot, ComponentType } from './js/word-root-analyzer.js';
 import { analyzeWordUsage, UsageScenario } from './js/word-usage-analyzer.js';
 
@@ -15,6 +15,7 @@ const searchBtn = document.getElementById('searchBtn');
 const clearBtn = document.getElementById('clearBtn');
 const backBtn = document.getElementById('backBtn');
 const historyBtn = document.getElementById('historyBtn');
+const shareBtn = document.getElementById('shareBtn');
 const errorBanner = document.getElementById('errorBanner');
 const errorMessage = document.getElementById('errorMessage');
 const dismissError = document.getElementById('dismissError');
@@ -36,6 +37,8 @@ const chineseTranslation = document.getElementById('chineseTranslation');
 const definitionsContainer = document.getElementById('definitionsContainer');
 const wordRootCard = document.getElementById('wordRootCard');
 const wordRootContent = document.getElementById('wordRootContent');
+const wordFamilyCard = document.getElementById('wordFamilyCard');
+const wordFamilyContent = document.getElementById('wordFamilyContent');
 const wordUsageCard = document.getElementById('wordUsageCard');
 const wordUsageContent = document.getElementById('wordUsageContent');
 const googleLink = document.getElementById('googleLink');
@@ -54,7 +57,21 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSearchHistory();
   setupEventListeners();
   registerServiceWorker();
+  checkUrlForWord();
 });
+
+/**
+ * Check URL for word parameter and search if present
+ */
+function checkUrlForWord() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const word = urlParams.get('word') || urlParams.get('q');
+  if (word) {
+    searchInput.value = word;
+    handleInputChange();
+    handleSearch();
+  }
+}
 
 /**
  * Register service worker for PWA
@@ -96,6 +113,9 @@ function setupEventListeners() {
   // History button - show history panel
   historyBtn.addEventListener('click', goBackToHome);
 
+  // Share button
+  shareBtn.addEventListener('click', handleShare);
+
   // Error dismiss
   dismissError.addEventListener('click', hideError);
 
@@ -117,6 +137,57 @@ function goBackToHome() {
   searchInput.value = '';
   handleInputChange();
   backBtn.style.display = 'none';
+  shareBtn.style.display = 'none';
+  // Clear URL parameter
+  window.history.replaceState({}, '', window.location.pathname);
+}
+
+/**
+ * Handle share button click
+ */
+async function handleShare() {
+  if (!currentResult) return;
+  
+  const word = currentResult.word || currentResult.chineseWord;
+  const shareUrl = `${window.location.origin}${window.location.pathname}?word=${encodeURIComponent(word)}`;
+  
+  // Try native share API first (works on mobile)
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: `EasyDict - ${word}`,
+        text: `Look up "${word}" on EasyDict`,
+        url: shareUrl
+      });
+      return;
+    } catch (error) {
+      // User cancelled or share failed, fall back to clipboard
+    }
+  }
+  
+  // Fall back to clipboard
+  try {
+    await navigator.clipboard.writeText(shareUrl);
+    showShareToast('Link copied to clipboard!');
+  } catch (error) {
+    // Final fallback - prompt user
+    prompt('Copy this link:', shareUrl);
+  }
+}
+
+/**
+ * Show a brief toast message
+ */
+function showShareToast(message) {
+  const toast = document.createElement('div');
+  toast.className = 'share-toast';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.classList.add('fade-out');
+    setTimeout(() => toast.remove(), 300);
+  }, 2000);
 }
 
 /**
@@ -281,8 +352,9 @@ function displayChineseResults(result) {
     });
   }
   
-  // Hide word root and usage cards for Chinese input
+  // Hide word root, family and usage cards for Chinese input
   wordRootCard.style.display = 'none';
+  wordFamilyCard.style.display = 'none';
   wordUsageCard.style.display = 'none';
   
   // Set Google link
@@ -334,6 +406,9 @@ function displayResults(result) {
   // Word root analysis
   displayWordRoot(result);
   
+  // Word family (async - fetched from API)
+  displayWordFamily(result.word);
+  
   // Word usage analysis
   displayWordUsage(result);
   
@@ -368,14 +443,11 @@ function displayDefinitions(result) {
     return;
   }
   
-  // Get word forms for the first definition card
-  const wordFormsResult = analyzeWordForms(result.word);
-  
   // Group definitions by part of speech
   const entry = result.englishDefinitions[0];
   const allSynonyms = getAllSynonyms(entry);
   
-  entry.meanings.forEach((meaning, meaningIndex) => {
+  entry.meanings.forEach((meaning) => {
     const card = document.createElement('div');
     card.className = 'definition-card';
     
@@ -406,19 +478,6 @@ function displayDefinitions(result) {
           </div>
         `).join('')}
       </div>
-      ${meaningIndex === 0 && wordFormsResult.hasContent ? `
-        <div class="word-forms-section">
-          <h4 class="word-forms-title">Related Word Forms</h4>
-          <div class="word-forms-grid">
-            ${wordFormsResult.forms.map(form => `
-              <div class="word-form-item" onclick="searchWord('${form.word}')">
-                <span class="word-form-type">${form.type.label}</span>
-                <span class="word-form-word">${form.word}</span>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      ` : ''}
     `;
     
     definitionsContainer.appendChild(card);
@@ -484,6 +543,48 @@ function displayWordRoot(result) {
   
   wordRootContent.innerHTML = html;
   wordRootCard.style.display = 'block';
+}
+
+/**
+ * Display word family (related word forms from API)
+ * @param {string} word - Word to find family for
+ */
+async function displayWordFamily(word) {
+  // Skip phrases
+  if (word.includes(' ')) {
+    wordFamilyCard.style.display = 'none';
+    return;
+  }
+  
+  // Show loading state
+  wordFamilyContent.innerHTML = '<p class="loading-text">Finding related words...</p>';
+  wordFamilyCard.style.display = 'block';
+  
+  try {
+    const family = await fetchWordFamily(word);
+    
+    if (!family.hasContent) {
+      wordFamilyCard.style.display = 'none';
+      return;
+    }
+    
+    const html = `
+      <div class="word-family-grid">
+        ${family.forms.map(form => `
+          <div class="word-family-item" onclick="searchWord('${form.word}')">
+            <span class="word-family-pos">${form.icon}</span>
+            <span class="word-family-word">${form.word}</span>
+            <span class="word-family-label">${form.partOfSpeech}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    
+    wordFamilyContent.innerHTML = html;
+  } catch (error) {
+    console.error('Word family error:', error);
+    wordFamilyCard.style.display = 'none';
+  }
 }
 
 /**
@@ -565,11 +666,20 @@ function showResults() {
   resultsContainer.style.display = 'flex';
   emptyState.style.display = 'none';
   backBtn.style.display = 'flex';
+  shareBtn.style.display = 'flex';
+  
+  // Update URL with current word
+  const word = currentResult?.word || currentResult?.chineseWord;
+  if (word) {
+    const newUrl = `${window.location.pathname}?word=${encodeURIComponent(word)}`;
+    window.history.replaceState({}, '', newUrl);
+  }
 }
 
 function hideResults() {
   resultsContainer.style.display = 'none';
   backBtn.style.display = 'none';
+  shareBtn.style.display = 'none';
 }
 
 function showEmptyState() {

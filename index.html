@@ -37,12 +37,23 @@
           </h1>
           <p class="app-subtitle">English-Chinese Dictionary</p>
         </div>
-        <button id="historyBtn" class="history-btn" title="Search History">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <polyline points="12 6 12 12 16 14"/>
-          </svg>
-        </button>
+        <div class="header-buttons">
+          <button id="shareBtn" class="header-btn share-btn" title="Share" style="display: none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="18" cy="5" r="3"/>
+              <circle cx="6" cy="12" r="3"/>
+              <circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+          </button>
+          <button id="historyBtn" class="header-btn history-btn" title="Search History">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -141,6 +152,15 @@
             <span class="card-title">Word Structure</span>
           </div>
           <div id="wordRootContent" class="word-root-content"></div>
+        </div>
+
+        <!-- Word Family -->
+        <div id="wordFamilyCard" class="word-family-card" style="display: none;">
+          <div class="card-header">
+            <span class="card-icon">👨‍👩‍👧‍👦</span>
+            <span class="card-title">Word Family</span>
+          </div>
+          <div id="wordFamilyContent" class="word-family-content"></div>
         </div>
 
         <!-- Word Usage Analysis -->

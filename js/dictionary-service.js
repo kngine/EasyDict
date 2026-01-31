@@ -5,6 +5,7 @@
 
 const ENGLISH_API_BASE = 'https://api.dictionaryapi.dev/api/v2/entries/en/';
 const TRANSLATION_API_BASE = 'https://api.mymemory.translated.net/get';
+const DATAMUSE_API_BASE = 'https://api.datamuse.com/words';
 
 /**
  * Check if text contains Chinese characters
@@ -317,4 +318,101 @@ export function getAllSynonyms(entry) {
   }
   
   return Array.from(synonyms);
+}
+
+/**
+ * Fetch word family (related word forms) using Datamuse API
+ * @param {string} word - The word to find family for
+ * @returns {Promise<Object>} Word family with different parts of speech
+ */
+export async function fetchWordFamily(word) {
+  const trimmedWord = word.trim().toLowerCase();
+  
+  // Skip phrases
+  if (trimmedWord.includes(' ')) {
+    return { word: trimmedWord, forms: [], hasContent: false };
+  }
+  
+  try {
+    // Use Datamuse API to find morphologically related words
+    // rel_trg = triggered by, sp = spelled like pattern
+    const rootLength = Math.max(3, Math.floor(trimmedWord.length * 0.6));
+    const root = trimmedWord.substring(0, rootLength);
+    
+    // Fetch words that start with the same root
+    const response = await fetch(`${DATAMUSE_API_BASE}?sp=${root}*&md=p&max=50`);
+    
+    if (!response.ok) {
+      return { word: trimmedWord, forms: [], hasContent: false };
+    }
+    
+    const data = await response.json();
+    
+    // Common derivational suffixes by part of speech
+    const suffixPatterns = {
+      noun: ['tion', 'sion', 'ment', 'ness', 'ity', 'ance', 'ence', 'er', 'or', 'ist', 'ism', 'dom', 'ship', 'hood', 'age', 'ure', 'al', 'th'],
+      verb: ['ize', 'ise', 'ify', 'ate', 'en', 'ed', 'ing'],
+      adjective: ['able', 'ible', 'al', 'ial', 'ful', 'less', 'ous', 'ious', 'ive', 'ic', 'ical', 'ant', 'ent', 'ary', 'ory', 'y', 'ly', 'ed'],
+      adverb: ['ly', 'ally', 'ily', 'ward', 'wise']
+    };
+    
+    // Map Datamuse tags to readable labels
+    const posLabels = {
+      n: { label: 'Noun', icon: 'N' },
+      v: { label: 'Verb', icon: 'V' },
+      adj: { label: 'Adjective', icon: 'Adj' },
+      adv: { label: 'Adverb', icon: 'Adv' }
+    };
+    
+    const forms = [];
+    const seenWords = new Set([trimmedWord]);
+    
+    for (const item of data) {
+      const relatedWord = item.word.toLowerCase();
+      
+      // Skip the original word and already seen words
+      if (seenWords.has(relatedWord)) continue;
+      
+      // Must share significant portion of the root
+      if (!relatedWord.startsWith(root.substring(0, Math.min(3, root.length)))) continue;
+      
+      // Skip if too different in length
+      if (Math.abs(relatedWord.length - trimmedWord.length) > 6) continue;
+      
+      // Get part of speech from tags
+      const tags = item.tags || [];
+      let pos = null;
+      
+      for (const tag of tags) {
+        if (posLabels[tag]) {
+          pos = tag;
+          break;
+        }
+      }
+      
+      if (pos && !seenWords.has(relatedWord)) {
+        seenWords.add(relatedWord);
+        forms.push({
+          word: relatedWord,
+          partOfSpeech: posLabels[pos].label,
+          icon: posLabels[pos].icon
+        });
+        
+        if (forms.length >= 8) break;
+      }
+    }
+    
+    // Sort by part of speech order: Noun, Verb, Adjective, Adverb
+    const posOrder = ['Noun', 'Verb', 'Adjective', 'Adverb'];
+    forms.sort((a, b) => posOrder.indexOf(a.partOfSpeech) - posOrder.indexOf(b.partOfSpeech));
+    
+    return {
+      word: trimmedWord,
+      forms,
+      hasContent: forms.length > 0
+    };
+  } catch (error) {
+    console.error('Word family fetch error:', error);
+    return { word: trimmedWord, forms: [], hasContent: false };
+  }
 }
