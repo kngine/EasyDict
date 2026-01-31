@@ -615,14 +615,18 @@ function displayWordUsage(result) {
   
   const html = sortedSuggestions.map(suggestion => `
     <div class="usage-scenario ${suggestion.isAppropriate ? 'appropriate' : 'alternative'}">
-      <span class="usage-icon">${suggestion.scenario.icon}</span>
-      <span class="usage-scenario-name">${suggestion.scenario.label}</span>
-      <div class="usage-status-badge ${suggestion.isAppropriate ? 'good' : 'consider'}">
-        ${suggestion.isAppropriate ? '✓' : '△'}
+      <div class="usage-scenario-row">
+        <span class="usage-icon">${suggestion.scenario.icon}</span>
+        <span class="usage-scenario-name">${suggestion.scenario.label}</span>
+        <div class="usage-status-badge ${suggestion.isAppropriate ? 'good' : 'consider'}">
+          ${suggestion.isAppropriate ? '✓' : '△'}
+        </div>
       </div>
       ${!suggestion.isAppropriate && suggestion.suggestedWord ? `
-        <span class="suggestion-arrow">→</span>
-        <span class="suggestion-word" onclick="searchWord('${suggestion.suggestedWord}')">${suggestion.suggestedWord}</span>
+        <div class="usage-suggestion-row">
+          <span class="suggestion-arrow">→</span>
+          <span class="suggestion-word" onclick="searchWord('${suggestion.suggestedWord}')">${suggestion.suggestedWord}</span>
+        </div>
       ` : ''}
     </div>
   `).join('');
