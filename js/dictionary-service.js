@@ -321,7 +321,128 @@ export function getAllSynonyms(entry) {
 }
 
 /**
- * Fetch word family (related word forms) using Datamuse API
+ * Generate potential word forms based on morphology rules
+ * @param {string} word - Base word
+ * @returns {Array<string>} Potential word forms to check
+ */
+function generatePotentialForms(word) {
+  const forms = new Set();
+  const w = word.toLowerCase();
+  
+  // Common transformations for verbs
+  // -ed (past tense)
+  forms.add(w + 'ed');
+  forms.add(w + 'd');
+  if (w.endsWith('e')) forms.add(w + 'd');
+  if (w.endsWith('y')) forms.add(w.slice(0, -1) + 'ied');
+  if (w.match(/[aeiou][bcdfghjklmnpqrstvwxz]$/)) forms.add(w + w.slice(-1) + 'ed');
+  
+  // -ing (present participle)
+  forms.add(w + 'ing');
+  if (w.endsWith('e')) forms.add(w.slice(0, -1) + 'ing');
+  if (w.match(/[aeiou][bcdfghjklmnpqrstvwxz]$/)) forms.add(w + w.slice(-1) + 'ing');
+  
+  // -s, -es (plural/third person)
+  forms.add(w + 's');
+  forms.add(w + 'es');
+  if (w.endsWith('y')) forms.add(w.slice(0, -1) + 'ies');
+  
+  // Noun forms
+  forms.add(w + 'tion');
+  forms.add(w + 'ation');
+  if (w.endsWith('e')) forms.add(w.slice(0, -1) + 'ation');
+  if (w.endsWith('e')) forms.add(w.slice(0, -1) + 'ion');
+  forms.add(w + 'ment');
+  forms.add(w + 'ness');
+  forms.add(w + 'er');
+  forms.add(w + 'or');
+  forms.add(w + 'ist');
+  forms.add(w + 'ity');
+  if (w.endsWith('e')) forms.add(w.slice(0, -1) + 'ity');
+  if (w.endsWith('ive')) forms.add(w.slice(0, -3) + 'ion');
+  
+  // Adjective forms
+  forms.add(w + 'ive');
+  forms.add(w + 'ative');
+  if (w.endsWith('e')) forms.add(w.slice(0, -1) + 'ive');
+  if (w.endsWith('ion')) forms.add(w.slice(0, -3) + 'ive');
+  forms.add(w + 'able');
+  forms.add(w + 'ible');
+  if (w.endsWith('e')) forms.add(w.slice(0, -1) + 'able');
+  forms.add(w + 'al');
+  forms.add(w + 'ful');
+  forms.add(w + 'less');
+  forms.add(w + 'ous');
+  forms.add(w + 'y');
+  
+  // Adverb forms
+  forms.add(w + 'ly');
+  if (w.endsWith('y')) forms.add(w.slice(0, -1) + 'ily');
+  if (w.endsWith('le')) forms.add(w.slice(0, -1) + 'y');
+  if (w.endsWith('ic')) forms.add(w + 'ally');
+  
+  // Try to find base form (remove common suffixes)
+  const suffixesToRemove = ['ed', 'ing', 's', 'es', 'tion', 'ation', 'ment', 'ness', 'er', 'or', 'ive', 'able', 'ible', 'al', 'ly', 'ity'];
+  for (const suffix of suffixesToRemove) {
+    if (w.endsWith(suffix) && w.length > suffix.length + 2) {
+      const base = w.slice(0, -suffix.length);
+      forms.add(base);
+      forms.add(base + 'e');
+    }
+  }
+  
+  // Remove the original word and invalid forms
+  forms.delete(w);
+  
+  return Array.from(forms).filter(f => f.length > 2 && f.length < 20);
+}
+
+/**
+ * Verify a word exists and get its part of speech using dictionary API
+ * @param {string} word - Word to verify
+ * @returns {Promise<Object|null>} Word info or null if not found
+ */
+async function verifyWordForm(word) {
+  try {
+    const response = await fetch(`${ENGLISH_API_BASE}${encodeURIComponent(word)}`);
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    if (!data || !data[0]) return null;
+    
+    // Get the primary part of speech
+    const entry = data[0];
+    const meanings = entry.meanings || [];
+    
+    if (meanings.length === 0) return null;
+    
+    // Map parts of speech to display labels
+    const posMap = {
+      'noun': { label: 'Noun', icon: 'N', order: 1 },
+      'verb': { label: 'Verb', icon: 'V', order: 2 },
+      'adjective': { label: 'Adjective', icon: 'Adj', order: 3 },
+      'adverb': { label: 'Adverb', icon: 'Adv', order: 4 },
+      'participle': { label: 'Participle', icon: 'Part', order: 5 }
+    };
+    
+    const pos = meanings[0].partOfSpeech?.toLowerCase();
+    const posInfo = posMap[pos];
+    
+    if (!posInfo) return null;
+    
+    return {
+      word: entry.word,
+      partOfSpeech: posInfo.label,
+      icon: posInfo.icon,
+      order: posInfo.order
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch word family (related word forms) by generating and verifying forms
  * @param {string} word - The word to find family for
  * @returns {Promise<Object>} Word family with different parts of speech
  */
@@ -334,82 +455,37 @@ export async function fetchWordFamily(word) {
   }
   
   try {
-    // Use Datamuse API to find morphologically related words
-    // rel_trg = triggered by, sp = spelled like pattern
-    const rootLength = Math.max(3, Math.floor(trimmedWord.length * 0.6));
-    const root = trimmedWord.substring(0, rootLength);
+    // Generate potential word forms
+    const potentialForms = generatePotentialForms(trimmedWord);
     
-    // Fetch words that start with the same root
-    const response = await fetch(`${DATAMUSE_API_BASE}?sp=${root}*&md=p&max=50`);
+    // Limit concurrent requests - check top candidates
+    const topCandidates = potentialForms.slice(0, 12);
     
-    if (!response.ok) {
-      return { word: trimmedWord, forms: [], hasContent: false };
-    }
+    // Verify forms in parallel
+    const verificationPromises = topCandidates.map(form => verifyWordForm(form));
+    const results = await Promise.all(verificationPromises);
     
-    const data = await response.json();
-    
-    // Common derivational suffixes by part of speech
-    const suffixPatterns = {
-      noun: ['tion', 'sion', 'ment', 'ness', 'ity', 'ance', 'ence', 'er', 'or', 'ist', 'ism', 'dom', 'ship', 'hood', 'age', 'ure', 'al', 'th'],
-      verb: ['ize', 'ise', 'ify', 'ate', 'en', 'ed', 'ing'],
-      adjective: ['able', 'ible', 'al', 'ial', 'ful', 'less', 'ous', 'ious', 'ive', 'ic', 'ical', 'ant', 'ent', 'ary', 'ory', 'y', 'ly', 'ed'],
-      adverb: ['ly', 'ally', 'ily', 'ward', 'wise']
-    };
-    
-    // Map Datamuse tags to readable labels
-    const posLabels = {
-      n: { label: 'Noun', icon: 'N' },
-      v: { label: 'Verb', icon: 'V' },
-      adj: { label: 'Adjective', icon: 'Adj' },
-      adv: { label: 'Adverb', icon: 'Adv' }
-    };
-    
-    const forms = [];
+    // Filter valid results and remove duplicates
     const seenWords = new Set([trimmedWord]);
+    const forms = [];
     
-    for (const item of data) {
-      const relatedWord = item.word.toLowerCase();
-      
-      // Skip the original word and already seen words
-      if (seenWords.has(relatedWord)) continue;
-      
-      // Must share significant portion of the root
-      if (!relatedWord.startsWith(root.substring(0, Math.min(3, root.length)))) continue;
-      
-      // Skip if too different in length
-      if (Math.abs(relatedWord.length - trimmedWord.length) > 6) continue;
-      
-      // Get part of speech from tags
-      const tags = item.tags || [];
-      let pos = null;
-      
-      for (const tag of tags) {
-        if (posLabels[tag]) {
-          pos = tag;
-          break;
-        }
-      }
-      
-      if (pos && !seenWords.has(relatedWord)) {
-        seenWords.add(relatedWord);
-        forms.push({
-          word: relatedWord,
-          partOfSpeech: posLabels[pos].label,
-          icon: posLabels[pos].icon
-        });
-        
-        if (forms.length >= 8) break;
+    for (const result of results) {
+      if (result && !seenWords.has(result.word.toLowerCase())) {
+        seenWords.add(result.word.toLowerCase());
+        forms.push(result);
       }
     }
     
-    // Sort by part of speech order: Noun, Verb, Adjective, Adverb
-    const posOrder = ['Noun', 'Verb', 'Adjective', 'Adverb'];
-    forms.sort((a, b) => posOrder.indexOf(a.partOfSpeech) - posOrder.indexOf(b.partOfSpeech));
+    // Sort by part of speech order
+    forms.sort((a, b) => a.order - b.order);
+    
+    // Limit to 6 results
+    const limitedForms = forms.slice(0, 6);
     
     return {
       word: trimmedWord,
-      forms,
-      hasContent: forms.length > 0
+      forms: limitedForms,
+      hasContent: limitedForms.length > 0
     };
   } catch (error) {
     console.error('Word family fetch error:', error);
