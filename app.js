@@ -281,7 +281,8 @@ function displayChineseResults(result) {
   // Clear and build definitions container for Chinese results
   definitionsContainer.innerHTML = '';
   
-  // First Section: English Translation
+  // First Section: English Translation (main translation clickable)
+  const mainTranslationEscaped = String(result.englishTranslation).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   const translationCard = document.createElement('div');
   translationCard.className = 'definition-card';
   translationCard.innerHTML = `
@@ -290,7 +291,7 @@ function displayChineseResults(result) {
       <span class="card-title">English Translation</span>
     </div>
     <div class="english-translation-content">
-      <p class="main-translation">${result.englishTranslation}</p>
+      <span class="main-translation main-translation-clickable" onclick="searchWord('${mainTranslationEscaped}')">${result.englishTranslation}</span>
       ${result.translationWords.length > 1 ? `
         <div class="translation-words">
           ${result.translationWords.map(word => `

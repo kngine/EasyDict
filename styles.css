@@ -1332,6 +1332,17 @@ a {
   margin-bottom: var(--space-3);
 }
 
+.main-translation-clickable {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color var(--transition-fast);
+}
+
+.main-translation-clickable:hover {
+  color: var(--primary-800);
+}
+
 .translation-words {
   display: flex;
   flex-wrap: wrap;
