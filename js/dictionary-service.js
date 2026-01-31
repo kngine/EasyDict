@@ -323,78 +323,112 @@ export function getAllSynonyms(entry) {
 /**
  * Generate potential word forms based on morphology rules
  * @param {string} word - Base word
- * @returns {Array<string>} Potential word forms to check
+ * @returns {Array<string>} Potential word forms to check (prioritized)
  */
 function generatePotentialForms(word) {
-  const forms = new Set();
+  const forms = [];
   const w = word.toLowerCase();
   
-  // Common transformations for verbs
-  // -ed (past tense)
-  forms.add(w + 'ed');
-  forms.add(w + 'd');
-  if (w.endsWith('e')) forms.add(w + 'd');
-  if (w.endsWith('y')) forms.add(w.slice(0, -1) + 'ied');
-  if (w.match(/[aeiou][bcdfghjklmnpqrstvwxz]$/)) forms.add(w + w.slice(-1) + 'ed');
-  
-  // -ing (present participle)
-  forms.add(w + 'ing');
-  if (w.endsWith('e')) forms.add(w.slice(0, -1) + 'ing');
-  if (w.match(/[aeiou][bcdfghjklmnpqrstvwxz]$/)) forms.add(w + w.slice(-1) + 'ing');
-  
-  // -s, -es (plural/third person)
-  forms.add(w + 's');
-  forms.add(w + 'es');
-  if (w.endsWith('y')) forms.add(w.slice(0, -1) + 'ies');
-  
-  // Noun forms
-  forms.add(w + 'tion');
-  forms.add(w + 'ation');
-  if (w.endsWith('e')) forms.add(w.slice(0, -1) + 'ation');
-  if (w.endsWith('e')) forms.add(w.slice(0, -1) + 'ion');
-  forms.add(w + 'ment');
-  forms.add(w + 'ness');
-  forms.add(w + 'er');
-  forms.add(w + 'or');
-  forms.add(w + 'ist');
-  forms.add(w + 'ity');
-  if (w.endsWith('e')) forms.add(w.slice(0, -1) + 'ity');
-  if (w.endsWith('ive')) forms.add(w.slice(0, -3) + 'ion');
-  
-  // Adjective forms
-  forms.add(w + 'ive');
-  forms.add(w + 'ative');
-  if (w.endsWith('e')) forms.add(w.slice(0, -1) + 'ive');
-  if (w.endsWith('ion')) forms.add(w.slice(0, -3) + 'ive');
-  forms.add(w + 'able');
-  forms.add(w + 'ible');
-  if (w.endsWith('e')) forms.add(w.slice(0, -1) + 'able');
-  forms.add(w + 'al');
-  forms.add(w + 'ful');
-  forms.add(w + 'less');
-  forms.add(w + 'ous');
-  forms.add(w + 'y');
-  
-  // Adverb forms
-  forms.add(w + 'ly');
-  if (w.endsWith('y')) forms.add(w.slice(0, -1) + 'ily');
-  if (w.endsWith('le')) forms.add(w.slice(0, -1) + 'y');
-  if (w.endsWith('ic')) forms.add(w + 'ally');
-  
-  // Try to find base form (remove common suffixes)
-  const suffixesToRemove = ['ed', 'ing', 's', 'es', 'tion', 'ation', 'ment', 'ness', 'er', 'or', 'ive', 'able', 'ible', 'al', 'ly', 'ity'];
-  for (const suffix of suffixesToRemove) {
-    if (w.endsWith(suffix) && w.length > suffix.length + 2) {
-      const base = w.slice(0, -suffix.length);
-      forms.add(base);
-      forms.add(base + 'e');
+  // Helper to add unique forms
+  const addForm = (form) => {
+    if (form && form !== w && form.length > 2 && !forms.includes(form)) {
+      forms.push(form);
     }
+  };
+  
+  // Detect if word ends with 'e' (affects many transformations)
+  const endsWithE = w.endsWith('e');
+  const endsWithConsonantY = w.match(/[^aeiou]y$/);
+  const base = endsWithE ? w.slice(0, -1) : w;
+  
+  // Priority 1: Direct derivations (most likely to be correct)
+  
+  // Verb forms
+  if (endsWithE) {
+    addForm(base + 'ing');      // create -> creating
+    addForm(base + 'ed');       // create -> created (past participle sometimes listed)
+    addForm(w + 'd');           // create -> created
+    addForm(base + 'ion');      // create -> creation
+    addForm(base + 'ation');    // create -> creation (alternative)
+    addForm(base + 'ive');      // create -> creative
+    addForm(base + 'or');       // create -> creator
+    addForm(base + 'er');       // create -> creater (less common)
+  } else {
+    addForm(w + 'ing');         // learn -> learning
+    addForm(w + 'ed');          // learn -> learned
+    addForm(w + 'er');          // learn -> learner
+    addForm(w + 'ion');         // not common but possible
+    addForm(w + 'ation');       // inform -> information
   }
   
-  // Remove the original word and invalid forms
-  forms.delete(w);
+  // Adjective forms
+  if (endsWithE) {
+    addForm(base + 'ive');      // create -> creative
+    addForm(base + 'ively');    // create -> creatively
+  }
+  addForm(w + 'ive');           // for words not ending in e
+  addForm(w + 'ively');
+  addForm(w + 'ly');            // large -> largely
+  addForm(w + 'ness');          // large -> largeness
   
-  return Array.from(forms).filter(f => f.length > 2 && f.length < 20);
+  // Comparative/superlative for adjectives
+  if (endsWithE) {
+    addForm(w + 'r');           // large -> larger
+    addForm(w + 'st');          // large -> largest
+  } else {
+    addForm(w + 'er');          // small -> smaller  
+    addForm(w + 'est');         // small -> smallest
+  }
+  
+  // Handle -y endings
+  if (endsWithConsonantY) {
+    const yBase = w.slice(0, -1);
+    addForm(yBase + 'ily');     // happy -> happily
+    addForm(yBase + 'iness');   // happy -> happiness
+    addForm(yBase + 'ier');     // happy -> happier
+    addForm(yBase + 'iest');    // happy -> happiest
+    addForm(yBase + 'ied');     // carry -> carried
+    addForm(yBase + 'ies');     // carry -> carries
+  }
+  
+  // Noun forms
+  addForm(w + 'ment');          // develop -> development
+  addForm(w + 'ness');          // kind -> kindness
+  addForm(w + 'ity');           // able -> ability
+  if (endsWithE) {
+    addForm(base + 'ity');      // creative -> creativity
+  }
+  
+  // If word looks like it might be a derived form, try to find base
+  if (w.endsWith('tion') || w.endsWith('sion')) {
+    const nounBase = w.slice(0, -4);
+    addForm(nounBase + 'e');    // creation -> create
+    addForm(nounBase);          // creation -> creat (then will check)
+    addForm(nounBase + 'ive');  // creation -> creative
+    addForm(nounBase + 'ively');// creation -> creatively
+  }
+  
+  if (w.endsWith('ive')) {
+    const adjBase = w.slice(0, -3);
+    addForm(adjBase + 'e');     // creative -> create
+    addForm(adjBase + 'ion');   // creative -> creation
+    addForm(w + 'ly');          // creative -> creatively
+    addForm(w.slice(0, -1) + 'ity'); // creative -> creativity
+  }
+  
+  if (w.endsWith('ly')) {
+    const advBase = w.slice(0, -2);
+    addForm(advBase);           // creatively -> creative (may not exist)
+    addForm(advBase + 'e');     // largely -> large
+  }
+  
+  if (w.endsWith('ness')) {
+    const nessBase = w.slice(0, -4);
+    addForm(nessBase);          // largeness -> large
+    addForm(nessBase + 'ly');   // largeness -> largely
+  }
+  
+  return forms.slice(0, 20); // Limit to prevent too many API calls
 }
 
 /**
@@ -421,8 +455,7 @@ async function verifyWordForm(word) {
       'noun': { label: 'Noun', icon: 'N', order: 1 },
       'verb': { label: 'Verb', icon: 'V', order: 2 },
       'adjective': { label: 'Adjective', icon: 'Adj', order: 3 },
-      'adverb': { label: 'Adverb', icon: 'Adv', order: 4 },
-      'participle': { label: 'Participle', icon: 'Part', order: 5 }
+      'adverb': { label: 'Adverb', icon: 'Adv', order: 4 }
     };
     
     const pos = meanings[0].partOfSpeech?.toLowerCase();
@@ -458,25 +491,28 @@ export async function fetchWordFamily(word) {
     // Generate potential word forms
     const potentialForms = generatePotentialForms(trimmedWord);
     
-    // Limit concurrent requests - check top candidates
-    const topCandidates = potentialForms.slice(0, 12);
-    
-    // Verify forms in parallel
-    const verificationPromises = topCandidates.map(form => verifyWordForm(form));
+    // Verify forms in parallel (check all generated forms)
+    const verificationPromises = potentialForms.map(form => verifyWordForm(form));
     const results = await Promise.all(verificationPromises);
     
     // Filter valid results and remove duplicates
     const seenWords = new Set([trimmedWord]);
+    const seenPOS = new Set();
     const forms = [];
     
     for (const result of results) {
       if (result && !seenWords.has(result.word.toLowerCase())) {
-        seenWords.add(result.word.toLowerCase());
-        forms.push(result);
+        // Prefer one word per part of speech for cleaner results
+        const posKey = result.partOfSpeech;
+        if (!seenPOS.has(posKey) || forms.length < 4) {
+          seenWords.add(result.word.toLowerCase());
+          seenPOS.add(posKey);
+          forms.push(result);
+        }
       }
     }
     
-    // Sort by part of speech order
+    // Sort by part of speech order: Noun, Verb, Adjective, Adverb
     forms.sort((a, b) => a.order - b.order);
     
     // Limit to 6 results
