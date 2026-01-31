@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>EasyDict Icon Generator</title>
+  <style>
+    body { font-family: system-ui; padding: 20px; }
+    canvas { border: 1px solid #ccc; margin: 10px; }
+    .icons { display: flex; flex-wrap: wrap; gap: 10px; }
+  </style>
+</head>
+<body>
+  <h1>EasyDict PWA Icon Generator</h1>
+  <p>Right-click each icon and "Save image as..." with the corresponding filename.</p>
+  <div class="icons" id="icons"></div>
+
+  <script>
+    const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+
+    function drawIcon(size) {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      // Background gradient
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#3B82F6');
+      gradient.addColorStop(1, '#1D4ED8');
+      ctx.fillStyle = gradient;
+      
+      // Rounded rectangle
+      const radius = size * 0.2;
+      ctx.beginPath();
+      ctx.moveTo(radius, 0);
+      ctx.lineTo(size - radius, 0);
+      ctx.quadraticCurveTo(size, 0, size, radius);
+      ctx.lineTo(size, size - radius);
+      ctx.quadraticCurveTo(size, size, size - radius, size);
+      ctx.lineTo(radius, size);
+      ctx.quadraticCurveTo(0, size, 0, size - radius);
+      ctx.lineTo(0, radius);
+      ctx.quadraticCurveTo(0, 0, radius, 0);
+      ctx.closePath();
+      ctx.fill();
+
+      // Book emoji/icon
+      ctx.fillStyle = 'white';
+      ctx.font = `${size * 0.5}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('📖', size / 2, size / 2);
+
+      return canvas;
+    }
+
+    const container = document.getElementById('icons');
+    sizes.forEach(size => {
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = `<p>icon-${size}x${size}.png</p>`;
+      wrapper.appendChild(drawIcon(size));
+      container.appendChild(wrapper);
+    });
+  </script>
+</body>
+</html>
