@@ -1291,14 +1291,17 @@ a {
 }
 
 .google-link-arrow {
-  width: 24px;
-  height: 24px;
-  color: rgba(255, 255, 255, 0.8);
+  width: 32px;
+  height: 32px;
+  color: white;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-full);
+  padding: 6px;
   transition: all var(--transition-fast);
 }
 
 .google-link-card:hover .google-link-arrow {
-  color: white;
+  background: rgba(255, 255, 255, 0.3);
   transform: translateX(4px);
 }
 
