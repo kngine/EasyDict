@@ -721,6 +721,8 @@ function showResults() {
   emptyState.style.display = 'none';
   backBtn.style.display = 'flex';
   shareBtn.style.display = 'flex';
+  if (notebookAddBar) notebookAddBar.style.display = 'flex';
+  updateNotebookButtonState();
   
   // Update URL with current word
   const word = currentResult?.word || currentResult?.chineseWord;
