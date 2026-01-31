@@ -1121,19 +1121,23 @@ a {
 }
 
 .history-item-delete {
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
+  padding: 4px;
   color: var(--gray-400);
-  opacity: 0;
+  border-radius: var(--radius-full);
   transition: all var(--transition-fast);
-}
-
-.history-item:hover .history-item-delete {
-  opacity: 1;
+  flex-shrink: 0;
 }
 
 .history-item-delete:hover {
   color: var(--accent-500);
+  background: var(--accent-50);
+}
+
+.history-item-delete svg {
+  width: 100%;
+  height: 100%;
 }
 
 /* ============================================
