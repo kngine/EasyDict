@@ -35,7 +35,7 @@
             <span class="title-icon">📖</span>
             EasyDict
           </h1>
-          <p class="app-subtitle">English-Chinese Dictionary</p>
+          <p class="app-subtitle">Comprehensive English Dictionary and Translation</p>
         </div>
         <div class="header-buttons">
           <button id="shareBtn" class="header-btn share-btn" title="Share" style="display: none;">
@@ -68,7 +68,7 @@
     <!-- Main Content -->
     <main class="main-content">
       <!-- Search Section -->
-      <section class="search-section">
+      <section id="searchSection" class="search-section">
         <div class="search-container">
           <div class="search-input-wrapper">
             <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -225,7 +225,7 @@
               <span class="feature-text">English Definitions</span>
             </div>
             <div class="feature-item">
-              <span class="feature-icon">🇨🇳</span>
+              <span class="feature-icon">译</span>
               <span class="feature-text">Chinese Translation</span>
             </div>
             <div class="feature-item">
@@ -237,6 +237,7 @@
               <span class="feature-text">Usage Scenarios</span>
             </div>
           </div>
+          <button id="learnToffleBtn" class="learn-toffle-btn">Learn TOFFLE</button>
         </div>
 
         <!-- Search History -->
@@ -270,6 +271,17 @@
             <button id="clearNotebookBtn" class="clear-notebook-btn">Clear All</button>
           </div>
           <ul id="notebookList" class="notebook-list"></ul>
+        </div>
+
+        <!-- TOFFLE (TOEFL Vocabulary) -->
+        <div id="toffleSection" class="toffle-section" style="display: none;">
+          <div class="toffle-header">
+            <h3 class="toffle-title">TOFFLE Vocabulary</h3>
+            <p class="toffle-subtitle" id="toffleSubtitle">Choose a letter</p>
+            <button type="button" id="toffleBackToLetters" class="toffle-back-to-letters" style="display: none;">← Back to letters</button>
+          </div>
+          <div id="toffleLetterGrid" class="toffle-letter-grid"></div>
+          <ul id="toffleList" class="toffle-list" style="display: none;"></ul>
         </div>
       </div>
     </main>

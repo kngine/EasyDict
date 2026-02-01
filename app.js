@@ -8,6 +8,7 @@ import { audioPlayer } from './js/audio-player.js';
 // word-forms-analyzer.js no longer used - replaced by API-based Word Family
 import { analyzeWordRoot, ComponentType } from './js/word-root-analyzer.js';
 import { analyzeWordUsage, UsageScenario } from './js/word-usage-analyzer.js';
+import { TOEFL_VOCABULARY } from './js/toefl-vocabulary.js';
 
 // DOM Elements
 const searchInput = document.getElementById('searchInput');
@@ -19,6 +20,7 @@ const shareBtn = document.getElementById('shareBtn');
 const errorBanner = document.getElementById('errorBanner');
 const errorMessage = document.getElementById('errorMessage');
 const dismissError = document.getElementById('dismissError');
+const searchSection = document.getElementById('searchSection');
 const loadingIndicator = document.getElementById('loadingIndicator');
 const resultsContainer = document.getElementById('resultsContainer');
 const emptyState = document.getElementById('emptyState');
@@ -33,6 +35,9 @@ const clearNotebookBtn = document.getElementById('clearNotebookBtn');
 const notebookAddBar = document.getElementById('notebookAddBar');
 const notebookAddBtn = document.getElementById('notebookAddBtn');
 const notebookAddLabel = document.getElementById('notebookAddLabel');
+const learnToffleBtn = document.getElementById('learnToffleBtn');
+const toffleSection = document.getElementById('toffleSection');
+const toffleList = document.getElementById('toffleList');
 
 // Result elements
 const resultWord = document.getElementById('resultWord');
@@ -55,19 +60,31 @@ let currentResult = null;
 let currentAudioUrl = null;
 let searchHistory = [];
 let notebook = [];
+/** @type {Set<string>} - lowercase words user has marked as known */
+let toffleKnown = new Set();
+/** 'letters' = 26-letter grid, 'letter' = word list for one letter */
+let toffleView = 'letters';
+/** Current letter when toffleView === 'letter' (e.g. 'A') */
+let toffleCurrentLetter = null;
 
 // Constants
 const MAX_HISTORY_SIZE = 20;
 const HISTORY_STORAGE_KEY = 'easydict_search_history';
 const NOTEBOOK_STORAGE_KEY = 'easydict_notebook';
+const TOFFLE_KNOWN_STORAGE_KEY = 'easydict_toffle_known';
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   loadSearchHistory();
   loadNotebook();
+  loadToffleKnown();
   setupEventListeners();
   registerServiceWorker();
   checkUrlForWord();
+  // Always show welcome on app open (never default to history)
+  if (welcomeSection) welcomeSection.style.display = 'block';
+  if (historySection) historySection.style.display = 'none';
+  if (emptyState) emptyState.style.display = 'flex';
 });
 
 /**
@@ -126,6 +143,9 @@ function setupEventListeners() {
   // Notebook button - show notebook panel
   notebookBtn.addEventListener('click', () => goBackToHome('notebook'));
 
+  // Learn TOFFLE button - show TOFFLE vocabulary page
+  if (learnToffleBtn) learnToffleBtn.addEventListener('click', () => goBackToHome('toffle'));
+
   // Share button
   shareBtn.addEventListener('click', handleShare);
 
@@ -144,6 +164,12 @@ function setupEventListeners() {
 
   // Notebook
   clearNotebookBtn.addEventListener('click', clearNotebook);
+  setupNotebookDragDrop();
+  setupNotebookItemClick();
+
+  if (toffleList) toffleList.addEventListener('click', handleToffleListClick);
+  if (toffleLetterGrid) toffleLetterGrid.addEventListener('click', handleToffleLetterGridClick);
+  if (toffleBackToLetters) toffleBackToLetters.addEventListener('click', toffleShowLetterGrid);
 }
 
 /**
@@ -162,12 +188,27 @@ function goBackToHome(panel) {
   window.history.replaceState({}, '', window.location.pathname);
 
   if (panel === 'notebook') {
+    if (searchSection) searchSection.style.display = 'none';
+    backBtn.style.display = 'flex';
     welcomeSection.style.display = 'none';
     historySection.style.display = 'none';
+    if (toffleSection) toffleSection.style.display = 'none';
     notebookSection.style.display = 'block';
     updateNotebookDisplay();
-  } else if (panel === 'history') {
+  } else if (panel === 'toffle') {
+    if (searchSection) searchSection.style.display = 'none';
+    backBtn.style.display = 'flex';
+    welcomeSection.style.display = 'none';
+    historySection.style.display = 'none';
     notebookSection.style.display = 'none';
+    if (toffleSection) {
+      toffleSection.style.display = 'block';
+      updateToffleDisplay();
+    }
+  } else if (panel === 'history') {
+    if (searchSection) searchSection.style.display = '';
+    notebookSection.style.display = 'none';
+    if (toffleSection) toffleSection.style.display = 'none';
     updateHistoryDisplay();
     if (searchHistory.length > 0) {
       welcomeSection.style.display = 'none';
@@ -177,15 +218,12 @@ function goBackToHome(panel) {
       historySection.style.display = 'none';
     }
   } else {
+    if (searchSection) searchSection.style.display = '';
     notebookSection.style.display = 'none';
+    if (toffleSection) toffleSection.style.display = 'none';
     updateHistoryDisplay();
-    if (searchHistory.length > 0) {
-      welcomeSection.style.display = 'none';
-      historySection.style.display = 'block';
-    } else {
-      welcomeSection.style.display = 'block';
-      historySection.style.display = 'none';
-    }
+    welcomeSection.style.display = 'block';
+    historySection.style.display = 'none';
   }
 }
 
@@ -812,14 +850,11 @@ function clearHistory() {
 
 function updateHistoryDisplay() {
   if (searchHistory.length === 0) {
-    historySection.style.display = 'none';
-    welcomeSection.style.display = 'block';
+    historyList.innerHTML = '';
+    if (clearHistoryBtn) clearHistoryBtn.style.display = 'none';
     return;
   }
-  
-  welcomeSection.style.display = 'none';
-  historySection.style.display = 'block';
-  
+  if (clearHistoryBtn) clearHistoryBtn.style.display = 'block';
   historyList.innerHTML = searchHistory.map(word => `
     <li class="history-item" onclick="searchWord('${word}')">
       <svg class="history-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -889,14 +924,17 @@ function updateNotebookDisplay() {
     return;
   }
   clearNotebookBtn.style.display = 'block';
-  notebookList.innerHTML = notebook.map(word => `
-    <li class="notebook-item" onclick="searchWord('${word.replace(/'/g, "\\'")}')">
+  notebookList.innerHTML = notebook.map((word, index) => `
+    <li class="notebook-item" data-index="${index}">
+      <span class="notebook-item-grip" draggable="true" aria-label="Drag to reorder">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z"/></svg>
+      </span>
       <svg class="notebook-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
         <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
       </svg>
-      <span class="notebook-item-word">${word}</span>
-      <button class="notebook-item-delete" onclick="event.stopPropagation(); removeFromNotebook('${word.replace(/'/g, "\\'")}')">
+      <span class="notebook-item-word" data-word="${(word || '').replace(/"/g, '&quot;')}">${word}</span>
+      <button class="notebook-item-delete" type="button" onclick="event.stopPropagation(); removeFromNotebook('${word.replace(/'/g, "\\'")}')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 6L6 18M6 6l12 12"/>
         </svg>
@@ -923,6 +961,203 @@ function handleNotebookToggle() {
     removeFromNotebook(word.trim());
   } else {
     addToNotebook(word.trim());
+  }
+}
+
+let notebookDragEndTime = 0;
+
+function setupNotebookDragDrop() {
+  if (!notebookList) return;
+
+  notebookList.addEventListener('dragstart', (e) => {
+    const grip = e.target.closest('.notebook-item-grip');
+    const item = grip ? grip.closest('.notebook-item') : e.target.closest('.notebook-item');
+    if (!item || item.classList.contains('notebook-empty')) return;
+    e.dataTransfer.setData('text/plain', item.dataset.index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('application/json', '{}'); // required for drop in some browsers
+    item.classList.add('notebook-item-dragging');
+  });
+  notebookList.addEventListener('dragend', (e) => {
+    const item = e.target.closest('.notebook-item');
+    if (item) item.classList.remove('notebook-item-dragging');
+    notebookDragEndTime = Date.now();
+  });
+  notebookList.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const item = e.target.closest('.notebook-item');
+    if (item && !item.classList.contains('notebook-item-dragging')) {
+      item.classList.add('notebook-item-drag-over');
+    }
+  });
+  notebookList.addEventListener('dragleave', (e) => {
+    const item = e.target.closest('.notebook-item');
+    if (item) item.classList.remove('notebook-item-drag-over');
+  });
+  notebookList.addEventListener('drop', (e) => {
+    e.preventDefault();
+    notebookList.querySelectorAll('.notebook-item').forEach(el => el.classList.remove('notebook-item-drag-over'));
+    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+    const targetItem = e.target.closest('.notebook-item');
+    if (!targetItem || targetItem.classList.contains('notebook-empty') || Number.isNaN(fromIndex)) return;
+    const toIndex = parseInt(targetItem.dataset.index, 10);
+    if (fromIndex === toIndex) return;
+    const [word] = notebook.splice(fromIndex, 1);
+    notebook.splice(toIndex, 0, word);
+    saveNotebook();
+    updateNotebookDisplay();
+  });
+
+  // Touch support for mobile (no native DnD on touch): long-press on grip then drag to reorder
+  let touchStartIndex = null;
+  let touchStartY = 0;
+  let touchMovedEnough = false;
+  notebookList.addEventListener('touchstart', (e) => {
+    const item = e.target.closest('.notebook-item');
+    if (!item || item.classList.contains('notebook-empty')) return;
+    touchStartIndex = parseInt(item.dataset.index, 10);
+    touchStartY = e.touches[0].clientY;
+    touchMovedEnough = false;
+  }, { passive: true });
+  notebookList.addEventListener('touchmove', (e) => {
+    if (touchStartIndex == null) return;
+    const dy = Math.abs(e.touches[0].clientY - touchStartY);
+    if (dy > 25) touchMovedEnough = true;
+  }, { passive: true });
+  notebookList.addEventListener('touchend', (e) => {
+    const fromIndex = touchStartIndex;
+    const moved = touchMovedEnough;
+    touchStartIndex = null;
+    touchMovedEnough = false;
+    if (fromIndex == null || !moved) return;
+    const item = document.elementFromPoint(e.changedTouches[0].clientX, e.changedTouches[0].clientY)?.closest('.notebook-item');
+    if (!item || item.classList.contains('notebook-empty')) return;
+    const toIndex = parseInt(item.dataset.index, 10);
+    if (fromIndex === toIndex) return;
+    const [word] = notebook.splice(fromIndex, 1);
+    notebook.splice(toIndex, 0, word);
+    saveNotebook();
+    updateNotebookDisplay();
+  }, { passive: true });
+}
+
+function setupNotebookItemClick() {
+  if (!notebookList) return;
+  notebookList.addEventListener('click', (e) => {
+    if (Date.now() - notebookDragEndTime < 400) return; // ignore click right after drag
+    const item = e.target.closest('.notebook-item');
+    if (!item || item.classList.contains('notebook-empty')) return;
+    if (e.target.closest('.notebook-item-grip') || e.target.closest('.notebook-item-delete')) return;
+    const wordEl = item.querySelector('.notebook-item-word');
+    const word = wordEl?.dataset?.word ? wordEl.dataset.word.replace(/&quot;/g, '"') : (wordEl?.textContent || '').trim();
+    if (word) searchWord(word);
+  });
+}
+
+// TOFFLE (TOEFL vocabulary)
+function loadToffleKnown() {
+  try {
+    const stored = localStorage.getItem(TOFFLE_KNOWN_STORAGE_KEY);
+    if (stored) {
+      const arr = JSON.parse(stored);
+      toffleKnown = new Set(arr.map((w) => String(w).toLowerCase()));
+    }
+  } catch (error) {
+    console.error('Failed to load TOFFLE known words:', error);
+    toffleKnown = new Set();
+  }
+}
+
+function saveToffleKnown() {
+  try {
+    localStorage.setItem(TOFFLE_KNOWN_STORAGE_KEY, JSON.stringify([...toffleKnown]));
+  } catch (error) {
+    console.error('Failed to save TOFFLE known words:', error);
+  }
+}
+
+function toggleToffleKnown(word) {
+  const key = String(word).trim().toLowerCase();
+  if (!key) return;
+  if (toffleKnown.has(key)) {
+    toffleKnown.delete(key);
+  } else {
+    toffleKnown.add(key);
+  }
+  saveToffleKnown();
+  updateToffleDisplay();
+}
+
+function updateToffleDisplay() {
+  if (toffleView === 'letters') {
+    updateToffleLetterGrid();
+    if (toffleLetterGrid) toffleLetterGrid.style.display = 'grid';
+    if (toffleList) toffleList.style.display = 'none';
+    if (toffleBackToLetters) toffleBackToLetters.style.display = 'none';
+    if (toffleSubtitle) toffleSubtitle.textContent = 'Choose a letter';
+  } else {
+    updateToffleWordList(toffleCurrentLetter);
+    if (toffleLetterGrid) toffleLetterGrid.style.display = 'none';
+    if (toffleList) toffleList.style.display = 'block';
+    if (toffleBackToLetters) toffleBackToLetters.style.display = 'block';
+    if (toffleSubtitle) toffleSubtitle.textContent = toffleCurrentLetter ? `Words starting with ${toffleCurrentLetter}` : 'Choose a letter';
+  }
+}
+
+function updateToffleLetterGrid() {
+  if (!toffleLetterGrid) return;
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  toffleLetterGrid.innerHTML = letters.map((letter) => {
+    const count = (TOEFL_VOCABULARY || []).filter((w) => w.charAt(0).toUpperCase() === letter).length;
+    return `<button type="button" class="toffle-letter-btn" data-letter="${letter}" title="${letter} (${count} words)">${letter}</button>`;
+  }).join('');
+}
+
+function updateToffleWordList(letter) {
+  if (!toffleList || !letter) return;
+  const words = (TOEFL_VOCABULARY || []).filter((w) => w.charAt(0).toUpperCase() === letter.toUpperCase());
+  toffleList.innerHTML = words.map((word) => {
+    const key = word.toLowerCase();
+    const known = toffleKnown.has(key);
+    const displayWord = word.charAt(0).toUpperCase() + word.slice(1);
+    return `
+      <li class="toffle-item ${known ? 'toffle-item--known' : ''}" data-word="${(word || '').replace(/"/g, '&quot;')}">
+        <span class="toffle-item-word">${displayWord}</span>
+        <button type="button" class="toffle-item-known-btn" title="${known ? 'Mark as unknown' : 'I know this word'}" aria-label="${known ? 'Mark as unknown' : 'I know this word'}">
+          ${known ? '✓' : '○'}
+        </button>
+      </li>
+    `;
+  }).join('');
+}
+
+function handleToffleLetterGridClick(e) {
+  const btn = e.target.closest('.toffle-letter-btn');
+  if (!btn) return;
+  const letter = btn.dataset.letter;
+  if (!letter) return;
+  toffleView = 'letter';
+  toffleCurrentLetter = letter;
+  updateToffleDisplay();
+}
+
+function toffleShowLetterGrid() {
+  toffleView = 'letters';
+  toffleCurrentLetter = null;
+  updateToffleDisplay();
+}
+
+function handleToffleListClick(e) {
+  const item = e.target.closest('.toffle-item');
+  if (!item) return;
+  const word = item.dataset?.word ? item.dataset.word.replace(/&quot;/g, '"') : (item.querySelector('.toffle-item-word')?.textContent || '').trim();
+  if (!word) return;
+  if (e.target.closest('.toffle-item-known-btn')) {
+    e.preventDefault();
+    toggleToffleKnown(word);
+  } else {
+    searchWord(word);
   }
 }
 

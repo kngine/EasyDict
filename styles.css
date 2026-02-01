@@ -1097,6 +1097,165 @@ a {
   font-weight: 500;
 }
 
+.learn-toffle-btn {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  margin: var(--space-6) auto 0;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: white;
+  background: var(--primary-500);
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+.learn-toffle-btn:hover {
+  background: var(--primary-600);
+}
+
+.learn-toffle-btn:active {
+  transform: scale(0.98);
+}
+
+/* TOFFLE Section */
+.toffle-section {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
+}
+
+.toffle-header {
+  margin-bottom: var(--space-4);
+}
+
+.toffle-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--gray-800);
+  margin-bottom: var(--space-1);
+}
+
+.toffle-subtitle {
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+  margin-bottom: var(--space-2);
+}
+
+.toffle-back-to-letters {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--primary-600);
+  background: var(--primary-50);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  margin-bottom: var(--space-4);
+  transition: background var(--transition-fast);
+}
+
+.toffle-back-to-letters:hover {
+  background: var(--primary-100);
+}
+
+.toffle-letter-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-2);
+  list-style: none;
+}
+
+.toffle-letter-btn {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--gray-700);
+  background: var(--gray-50);
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.toffle-letter-btn:hover {
+  background: var(--primary-50);
+  border-color: var(--primary-300);
+  color: var(--primary-700);
+}
+
+.toffle-letter-btn:active {
+  transform: scale(0.96);
+}
+
+.toffle-list {
+  list-style: none;
+}
+
+.toffle-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: 1px solid transparent;
+}
+
+.toffle-item:hover {
+  background: var(--primary-50);
+  border-color: var(--primary-200);
+}
+
+.toffle-item-word {
+  flex: 1;
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: var(--gray-700);
+}
+
+.toffle-item--known .toffle-item-word {
+  text-decoration: line-through;
+  color: var(--gray-400);
+}
+
+.toffle-item-known-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--gray-400);
+  background: transparent;
+  border: 2px solid var(--gray-300);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.toffle-item-known-btn:hover {
+  color: var(--primary-500);
+  border-color: var(--primary-400);
+}
+
+.toffle-item--known .toffle-item-known-btn {
+  color: var(--primary-600);
+  border-color: var(--primary-500);
+  background: var(--primary-50);
+}
+
 /* History Section */
 .history-section {
   background: white;
@@ -1268,6 +1427,36 @@ a {
   border-color: var(--primary-200);
 }
 
+.notebook-item-grip {
+  display: flex;
+  align-items: center;
+  color: var(--gray-400);
+  cursor: grab;
+  flex-shrink: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: element;
+}
+
+.notebook-item-grip svg {
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+
+.notebook-item-grip:active {
+  cursor: grabbing;
+}
+
+.notebook-item-dragging {
+  opacity: 0.5;
+}
+
+.notebook-item-drag-over {
+  border-color: var(--primary-300);
+  background: var(--primary-50);
+}
+
 .notebook-item-icon {
   width: 20px;
   height: 20px;
@@ -1277,6 +1466,7 @@ a {
 
 .notebook-item-word {
   flex: 1;
+  font-size: 1.25rem;
   font-weight: 500;
   color: var(--gray-700);
 }
