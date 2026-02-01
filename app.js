@@ -3,7 +3,7 @@
  * English-Chinese Dictionary with Word Analysis
  */
 
-import { lookupWord, lookupChineseWord, isChinese, getBestAudioUrl, getPhoneticText, getAllSynonyms, fetchWordFamily, DictionaryError } from './js/dictionary-service.js';
+import { lookupWord, lookupChineseWord, isChinese, getBestAudioUrl, getPhoneticText, getAllSynonyms, fetchWordFamily, fetchChineseTranslation, fetchEnglishDefinition, DictionaryError } from './js/dictionary-service.js';
 import { audioPlayer } from './js/audio-player.js';
 // word-forms-analyzer.js no longer used - replaced by API-based Word Family
 import { analyzeWordRoot, ComponentType } from './js/word-root-analyzer.js';
@@ -53,6 +53,12 @@ const greLetterGrid = document.getElementById('greLetterGrid');
 const greBackToLetters = document.getElementById('greBackToLetters');
 const greSubtitle = document.getElementById('greSubtitle');
 const greList = document.getElementById('greList');
+const learnIdiomBtn = document.getElementById('learnIdiomBtn');
+const idiomSection = document.getElementById('idiomSection');
+const idiomLetterGrid = document.getElementById('idiomLetterGrid');
+const idiomBackToLetters = document.getElementById('idiomBackToLetters');
+const idiomSubtitle = document.getElementById('idiomSubtitle');
+const idiomList = document.getElementById('idiomList');
 
 // Result elements
 const resultWord = document.getElementById('resultWord');
@@ -88,6 +94,7 @@ const HISTORY_STORAGE_KEY = 'easydict_search_history';
 const NOTEBOOK_STORAGE_KEY = 'easydict_notebook';
 const TOFFLE_KNOWN_STORAGE_KEY = 'easydict_toffle_known';
 const GRE_KNOWN_STORAGE_KEY = 'easydict_gre_known';
+const IDIOM_KNOWN_STORAGE_KEY = 'easydict_idiom_known';
 
 /** @type {Set<string>} - GRE words user has marked as known */
 let greKnown = new Set();
@@ -95,6 +102,13 @@ let greKnown = new Set();
 let greView = 'letters';
 /** Current letter when greView === 'letter' (e.g. 'A') */
 let greCurrentLetter = null;
+
+/** Idiom vocabulary (common American idioms); fallback set at init, file load may replace */
+let IDIOM_VOCABULARY = getDefaultIdiomVocabulary();
+/** @type {Set<string>} - idioms (lowercase) user has marked as known */
+let idiomKnown = new Set();
+let idiomView = 'letters';
+let idiomCurrentLetter = null;
 
 /** Navigation stack for Back: each entry is { view, letter? }. Back pops and shows previous view. */
 let navStack = [];
@@ -111,6 +125,9 @@ function getCurrentView() {
   }
   if (greSection && greSection.style.display === 'block') {
     return greView === 'letter' ? { view: 'gre-letter', letter: greCurrentLetter } : { view: 'gre' };
+  }
+  if (idiomSection && idiomSection.style.display === 'block') {
+    return idiomView === 'letter' ? { view: 'idiom-letter', letter: idiomCurrentLetter } : { view: 'idiom' };
   }
   return { view: 'welcome' };
 }
@@ -137,6 +154,7 @@ function showView(desc) {
     if (historySection) historySection.style.display = 'none';
     if (toffleSection) toffleSection.style.display = 'none';
     if (greSection) greSection.style.display = 'none';
+    if (idiomSection) idiomSection.style.display = 'none';
     if (notebookSection) notebookSection.style.display = 'block';
     updateNotebookDisplay();
   } else if (desc.view === 'toffle' || desc.view === 'toffle-letter') {
@@ -146,6 +164,7 @@ function showView(desc) {
     if (historySection) historySection.style.display = 'none';
     if (notebookSection) notebookSection.style.display = 'none';
     if (greSection) greSection.style.display = 'none';
+    if (idiomSection) idiomSection.style.display = 'none';
     if (toffleSection) {
       toffleSection.style.display = 'block';
       toffleView = desc.view === 'toffle-letter' ? 'letter' : 'letters';
@@ -159,17 +178,34 @@ function showView(desc) {
     if (historySection) historySection.style.display = 'none';
     if (notebookSection) notebookSection.style.display = 'none';
     if (toffleSection) toffleSection.style.display = 'none';
+    if (idiomSection) idiomSection.style.display = 'none';
     if (greSection) {
       greSection.style.display = 'block';
       greView = desc.view === 'gre-letter' ? 'letter' : 'letters';
       greCurrentLetter = desc.view === 'gre-letter' ? (desc.letter || null) : null;
       updateGreDisplay();
     }
+    if (idiomSection) idiomSection.style.display = 'none';
+  } else if (desc.view === 'idiom' || desc.view === 'idiom-letter') {
+    if (searchSection) searchSection.style.display = 'none';
+    if (backBtn) backBtn.style.display = 'flex';
+    if (welcomeSection) welcomeSection.style.display = 'none';
+    if (historySection) historySection.style.display = 'none';
+    if (notebookSection) notebookSection.style.display = 'none';
+    if (toffleSection) toffleSection.style.display = 'none';
+    if (greSection) greSection.style.display = 'none';
+    if (idiomSection) {
+      idiomSection.style.display = 'block';
+      idiomView = desc.view === 'idiom-letter' ? 'letter' : 'letters';
+      idiomCurrentLetter = desc.view === 'idiom-letter' ? (desc.letter || null) : null;
+      updateIdiomDisplay();
+    }
   } else if (desc.view === 'history') {
     if (searchSection) searchSection.style.display = '';
     if (notebookSection) notebookSection.style.display = 'none';
     if (toffleSection) toffleSection.style.display = 'none';
     if (greSection) greSection.style.display = 'none';
+    if (idiomSection) idiomSection.style.display = 'none';
     updateHistoryDisplay();
     if (searchHistory.length > 0) {
       if (welcomeSection) welcomeSection.style.display = 'none';
@@ -184,6 +220,7 @@ function showView(desc) {
     if (notebookSection) notebookSection.style.display = 'none';
     if (toffleSection) toffleSection.style.display = 'none';
     if (greSection) greSection.style.display = 'none';
+    if (idiomSection) idiomSection.style.display = 'none';
     updateHistoryDisplay();
     if (welcomeSection) welcomeSection.style.display = 'block';
     if (historySection) historySection.style.display = 'none';
@@ -211,6 +248,32 @@ function goBack() {
   showView(previous);
 }
 
+/** Inline fallback idiom list so Idiom page works even if js/idiom-vocabulary.js fails to load */
+function getDefaultIdiomVocabulary() {
+  return [
+    'a blessing in disguise', 'a dime a dozen', 'a piece of cake', 'a taste of your own medicine',
+    'actions speak louder than words', 'add insult to injury', 'at the drop of a hat', 'back to square one',
+    'ball is in your court', 'bark up the wrong tree', 'beat around the bush', 'bend over backwards',
+    'best of both worlds', 'bite the bullet', 'break the ice', 'bring something to the table',
+    'burn the midnight oil', 'by the skin of your teeth', 'call it a day', 'caught between a rock and a hard place',
+    'chip on your shoulder', 'cold feet', 'come rain or shine', 'cost an arm and a leg',
+    'cross that bridge when you come to it', 'curiosity killed the cat', 'cut somebody some slack',
+    'cutting corners', 'down to earth', 'draw the line', 'drive someone up the wall', 'drop the ball',
+    'easier said than done', 'elephant in the room', 'every cloud has a silver lining', 'feel under the weather',
+    'get off on the wrong foot', 'get out of hand', 'get the ball rolling', 'get your act together',
+    'go the extra mile', 'hang in there', 'hard nut to crack', 'head in the clouds', 'hear a pin drop',
+    'hit the nail on the head', 'hit the sack', 'hold your horses', 'in the heat of the moment', 'in the same boat',
+    'it takes two to tango', 'jump on the bandwagon', 'jump the gun', 'keep your chin up',
+    'kill two birds with one stone', 'let the cat out of the bag', 'long story short', 'miss the boat',
+    'no pain no gain', 'off the top of my head', 'on cloud nine', 'on the same page', 'once in a blue moon',
+    'piece of cake', 'pull yourself together', 'raining cats and dogs', 'read between the lines',
+    'see eye to eye', 'sit on the fence', 'speak of the devil', 'spill the beans', 'take it with a grain of salt',
+    'the ball is in your court', 'the best of both worlds', 'the last straw', 'the whole nine yards',
+    'through thick and thin', 'throw in the towel', 'time flies', 'under the weather', 'up in the air',
+    'when pigs fly', 'wrap your head around something', 'you can say that again', 'your call'
+  ];
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   try {
@@ -218,6 +281,8 @@ document.addEventListener('DOMContentLoaded', () => {
     loadNotebook();
     loadToffleKnown();
     loadGreKnown();
+    loadIdiomKnown();
+    loadIdiomVocabulary();
     setupEventListeners();
     registerServiceWorker();
     checkUrlForWord();
@@ -290,6 +355,9 @@ function setupEventListeners() {
   // Learn GRE button - show GRE vocabulary page
   if (learnGreBtn) learnGreBtn.addEventListener('click', () => navigateTo('gre'));
 
+  // Learn Idioms button - show Idioms page
+  if (learnIdiomBtn) learnIdiomBtn.addEventListener('click', () => navigateTo('idiom'));
+
   // Share button
   if (shareBtn) shareBtn.addEventListener('click', handleShare);
 
@@ -316,10 +384,13 @@ function setupEventListeners() {
 
   if (toffleList) toffleList.addEventListener('click', handleToffleListClick);
   if (toffleLetterGrid) toffleLetterGrid.addEventListener('click', handleToffleLetterGridClick);
-  if (toffleBackToLetters) toffleBackToLetters.addEventListener('click', () => goBack());
+  if (toffleBackToLetters) toffleBackToLetters.addEventListener('click', () => { if (navStack.length > 0) navStack.pop(); toffleShowLetterGrid(); });
   if (greList) greList.addEventListener('click', handleGreListClick);
   if (greLetterGrid) greLetterGrid.addEventListener('click', handleGreLetterGridClick);
-  if (greBackToLetters) greBackToLetters.addEventListener('click', () => goBack());
+  if (greBackToLetters) greBackToLetters.addEventListener('click', () => { if (navStack.length > 0) navStack.pop(); greShowLetterGrid(); });
+  if (idiomLetterGrid) idiomLetterGrid.addEventListener('click', handleIdiomLetterGridClick);
+  if (idiomList) idiomList.addEventListener('click', handleIdiomListClick);
+  if (idiomBackToLetters) idiomBackToLetters.addEventListener('click', () => { if (navStack.length > 0) navStack.pop(); idiomShowLetterGrid(); });
 }
 
 /**
@@ -344,6 +415,7 @@ function goBackToHome(panel) {
     historySection.style.display = 'none';
     if (toffleSection) toffleSection.style.display = 'none';
     if (greSection) greSection.style.display = 'none';
+    if (idiomSection) idiomSection.style.display = 'none';
     notebookSection.style.display = 'block';
     updateNotebookDisplay();
   } else if (panel === 'toffle') {
@@ -353,6 +425,7 @@ function goBackToHome(panel) {
     historySection.style.display = 'none';
     notebookSection.style.display = 'none';
     if (greSection) greSection.style.display = 'none';
+    if (idiomSection) idiomSection.style.display = 'none';
     if (toffleSection) {
       toffleSection.style.display = 'block';
       toffleView = 'letters';
@@ -366,6 +439,7 @@ function goBackToHome(panel) {
     historySection.style.display = 'none';
     notebookSection.style.display = 'none';
     if (toffleSection) toffleSection.style.display = 'none';
+    if (idiomSection) idiomSection.style.display = 'none';
     if (greSection) {
       greSection.style.display = 'block';
       greView = 'letters';
@@ -382,11 +456,26 @@ function goBackToHome(panel) {
         updateGreDisplay();
       }
     }
+  } else if (panel === 'idiom') {
+    if (searchSection) searchSection.style.display = 'none';
+    backBtn.style.display = 'flex';
+    welcomeSection.style.display = 'none';
+    historySection.style.display = 'none';
+    notebookSection.style.display = 'none';
+    if (toffleSection) toffleSection.style.display = 'none';
+    if (greSection) greSection.style.display = 'none';
+    if (idiomSection) {
+      idiomSection.style.display = 'block';
+      idiomView = 'letters';
+      idiomCurrentLetter = null;
+      updateIdiomDisplay();
+    }
   } else if (panel === 'history') {
     if (searchSection) searchSection.style.display = '';
     notebookSection.style.display = 'none';
     if (toffleSection) toffleSection.style.display = 'none';
     if (greSection) greSection.style.display = 'none';
+    if (idiomSection) idiomSection.style.display = 'none';
     updateHistoryDisplay();
     if (searchHistory.length > 0) {
       welcomeSection.style.display = 'none';
@@ -400,6 +489,7 @@ function goBackToHome(panel) {
     notebookSection.style.display = 'none';
     if (toffleSection) toffleSection.style.display = 'none';
     if (greSection) greSection.style.display = 'none';
+    if (idiomSection) idiomSection.style.display = 'none';
     updateHistoryDisplay();
     welcomeSection.style.display = 'block';
     historySection.style.display = 'none';
@@ -1042,6 +1132,7 @@ function removeFromHistory(word) {
 }
 
 function clearHistory() {
+  if (!confirm('Clear all search history? This cannot be undone.')) return;
   searchHistory = [];
   saveSearchHistory();
   updateHistoryDisplay();
@@ -1111,6 +1202,7 @@ function removeFromNotebook(word) {
 }
 
 function clearNotebook() {
+  if (!confirm('Clear all words from your notebook? This cannot be undone.')) return;
   notebook = [];
   saveNotebook();
   updateNotebookDisplay();
@@ -1192,7 +1284,17 @@ function updateNotebookDisplay() {
         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
         <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
       </svg>
-      <span class="notebook-item-word" data-word="${(word || '').replace(/"/g, '&quot;')}">${word}</span>
+      <div class="notebook-item-text">
+        <span class="notebook-item-word" data-word="${(word || '').replace(/"/g, '&quot;')}">${word}</span>
+        <span class="notebook-item-translation" data-word="${(word || '').replace(/"/g, '&quot;')}"></span>
+      </div>
+      <button type="button" class="notebook-pronounce-btn" data-word="${(word || '').replace(/"/g, '&quot;')}" aria-label="Pronounce">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+        </svg>
+      </button>
       <div class="notebook-item-reorder">
         <button type="button" class="notebook-move-btn notebook-move-up" data-index="${index}" aria-label="Move up" ${index === 0 ? 'disabled' : ''}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 15l-6-6-6 6"/></svg>
@@ -1208,6 +1310,33 @@ function updateNotebookDisplay() {
       </button>
     </li>
   `).join('');
+  loadNotebookTranslations();
+}
+
+/**
+ * Fetch Chinese translation for each notebook word and fill the second line (limited concurrency).
+ */
+async function loadNotebookTranslations() {
+  if (!notebookList || notebook.length === 0) return;
+  const CONCURRENCY = 3;
+  const queue = [...notebook];
+  async function run() {
+    while (queue.length > 0) {
+      const word = queue.shift();
+      if (!word) continue;
+      try {
+        const result = await fetchChineseTranslation(word);
+        const primary = result?.primary || '';
+        notebookList.querySelectorAll('.notebook-item-translation').forEach((el) => {
+          if (el.dataset.word === word) el.textContent = primary;
+        });
+      } catch (_) {
+        // Leave translation empty on error
+      }
+    }
+  }
+  const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, () => run());
+  await Promise.all(workers);
 }
 
 function updateNotebookButtonState() {
@@ -1365,6 +1494,14 @@ function setupNotebookItemClick() {
     const item = e.target.closest('.notebook-item');
     if (!item || item.classList.contains('notebook-empty')) return;
     if (e.target.closest('.notebook-item-grip') || e.target.closest('.notebook-item-delete')) return;
+    // Pronunciation (same icon as search page; play without leaving notebook)
+    const pronounceBtn = e.target.closest('.notebook-pronounce-btn');
+    if (pronounceBtn) {
+      e.preventDefault();
+      const w = pronounceBtn.dataset.word ? pronounceBtn.dataset.word.replace(/&quot;/g, '"') : (pronounceBtn.closest('.notebook-item')?.querySelector('.notebook-item-word')?.textContent || '').trim();
+      if (w) pronounceNotebookWord(w);
+      return;
+    }
     // Move up / move down (touch-friendly reorder on iPhone)
     const moveUp = e.target.closest('.notebook-move-up');
     const moveDown = e.target.closest('.notebook-move-down');
@@ -1396,6 +1533,27 @@ function moveNotebookItemDown(index) {
   [notebook[index], notebook[index + 1]] = [notebook[index + 1], notebook[index]];
   saveNotebook();
   updateNotebookDisplay();
+}
+
+/**
+ * Pronounce a notebook word (API audio when available, else TTS). Does not leave the notebook page.
+ */
+async function pronounceNotebookWord(word) {
+  const w = (word || '').trim();
+  if (!w) return;
+  try {
+    const entries = await fetchEnglishDefinition(w);
+    if (entries && entries[0] && entries[0].phonetics) {
+      const url = getBestAudioUrl(entries[0].phonetics);
+      if (url) {
+        audioPlayer.play(url);
+        return;
+      }
+    }
+  } catch (_) {
+    // Word not found or network error: fall back to TTS
+  }
+  audioPlayer.speakTts(w, 'en-US');
 }
 
 // TOFFLE (TOEFL vocabulary)
@@ -1466,13 +1624,41 @@ function updateToffleWordList(letter) {
     const displayWord = word.charAt(0).toUpperCase() + word.slice(1);
     return `
       <li class="toffle-item ${known ? 'toffle-item--known' : ''}" data-word="${(word || '').replace(/"/g, '&quot;')}">
-        <span class="toffle-item-word">${displayWord}</span>
+        <div class="toffle-item-text">
+          <span class="toffle-item-word">${displayWord}</span>
+          <span class="toffle-item-translation" data-word="${(word || '').replace(/"/g, '&quot;')}"></span>
+        </div>
+        <button type="button" class="toffle-pronounce-btn" data-word="${(word || '').replace(/"/g, '&quot;')}" aria-label="Pronounce">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+        </button>
         <button type="button" class="toffle-item-known-btn" title="${known ? 'Mark as unknown' : 'I know this word'}" aria-label="${known ? 'Mark as unknown' : 'I know this word'}">
           ${known ? '✓' : '○'}
         </button>
       </li>
     `;
   }).join('');
+  loadToffleTranslations(letter);
+}
+
+async function loadToffleTranslations(letter) {
+  if (!toffleList) return;
+  const words = (TOEFL_VOCABULARY || []).filter((w) => w.charAt(0).toUpperCase() === letter.toUpperCase());
+  const CONCURRENCY = 3;
+  const queue = [...words];
+  async function run() {
+    while (queue.length > 0) {
+      const word = queue.shift();
+      if (!word) continue;
+      try {
+        const result = await fetchChineseTranslation(word);
+        const primary = result?.primary || '';
+        toffleList.querySelectorAll('.toffle-item-translation').forEach((el) => {
+          if (el.dataset.word === word) el.textContent = primary;
+        });
+      } catch (_) {}
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, words.length) }, () => run()));
 }
 
 function handleToffleLetterGridClick(e) {
@@ -1497,6 +1683,11 @@ function handleToffleListClick(e) {
   if (!item) return;
   const word = item.dataset?.word ? item.dataset.word.replace(/&quot;/g, '"') : (item.querySelector('.toffle-item-word')?.textContent || '').trim();
   if (!word) return;
+  if (e.target.closest('.toffle-pronounce-btn')) {
+    e.preventDefault();
+    pronounceNotebookWord(word);
+    return;
+  }
   if (e.target.closest('.toffle-item-known-btn')) {
     e.preventDefault();
     toggleToffleKnown(word);
@@ -1574,7 +1765,13 @@ function updateGreWordList(letter) {
     const displayWord = word.charAt(0).toUpperCase() + word.slice(1);
     return `
       <li class="toffle-item ${known ? 'toffle-item--known' : ''} ${inNotebook ? 'toffle-item--in-notebook' : ''}" data-word="${(word || '').replace(/"/g, '&quot;')}">
-        <span class="toffle-item-word">${displayWord}</span>
+        <div class="toffle-item-text">
+          <span class="toffle-item-word">${displayWord}</span>
+          <span class="toffle-item-translation" data-word="${(word || '').replace(/"/g, '&quot;')}"></span>
+        </div>
+        <button type="button" class="toffle-pronounce-btn" data-word="${(word || '').replace(/"/g, '&quot;')}" aria-label="Pronounce">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+        </button>
         ${inNotebook ? '<span class="toffle-item-notebook-icon" title="In your notebook"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/></svg></span>' : ''}
         <button type="button" class="toffle-item-known-btn" title="${known ? 'Mark as unknown' : 'I know this word'}" aria-label="${known ? 'Mark as unknown' : 'I know this word'}">
           ${known ? '✓' : '○'}
@@ -1582,6 +1779,28 @@ function updateGreWordList(letter) {
       </li>
     `;
   }).join('');
+  loadGreTranslations(greCurrentLetter);
+}
+
+async function loadGreTranslations(letter) {
+  if (!greList || !letter) return;
+  const words = (GRE_VOCABULARY || []).filter((w) => w.charAt(0).toUpperCase() === letter.toUpperCase());
+  const CONCURRENCY = 3;
+  const queue = [...words];
+  async function run() {
+    while (queue.length > 0) {
+      const word = queue.shift();
+      if (!word) continue;
+      try {
+        const result = await fetchChineseTranslation(word);
+        const primary = result?.primary || '';
+        greList.querySelectorAll('.toffle-item-translation').forEach((el) => {
+          if (el.dataset.word === word) el.textContent = primary;
+        });
+      } catch (_) {}
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, words.length) }, () => run()));
 }
 
 function handleGreLetterGridClick(e) {
@@ -1605,12 +1824,167 @@ function handleGreListClick(e) {
   if (!item) return;
   const word = item.dataset?.word ? item.dataset.word.replace(/&quot;/g, '"') : (item.querySelector('.toffle-item-word')?.textContent || '').trim();
   if (!word) return;
+  if (e.target.closest('.toffle-pronounce-btn')) {
+    e.preventDefault();
+    pronounceNotebookWord(word);
+    return;
+  }
   if (e.target.closest('.toffle-item-known-btn')) {
     e.preventDefault();
     toggleGreKnown(word);
   } else {
     searchWord(word);
   }
+}
+
+// Idioms: hardcoded list only (from js/idiom-vocabulary.js or inline default)
+function loadIdiomVocabulary() {
+  import('./js/idiom-vocabulary.js')
+    .then((m) => {
+      const list = m.IDIOM_VOCABULARY;
+      if (Array.isArray(list) && list.length > 0) IDIOM_VOCABULARY = list;
+      if (idiomSection && idiomSection.style.display === 'block') updateIdiomDisplay();
+    })
+    .catch(() => {});
+}
+
+function loadIdiomKnown() {
+  try {
+    const stored = localStorage.getItem(IDIOM_KNOWN_STORAGE_KEY);
+    if (stored) {
+      const arr = JSON.parse(stored);
+      idiomKnown = new Set(arr.map((w) => String(w).toLowerCase()));
+    }
+  } catch (error) {
+    console.error('Failed to load idiom known:', error);
+    idiomKnown = new Set();
+  }
+}
+
+function saveIdiomKnown() {
+  try {
+    localStorage.setItem(IDIOM_KNOWN_STORAGE_KEY, JSON.stringify([...idiomKnown]));
+  } catch (error) {
+    console.error('Failed to save idiom known:', error);
+  }
+}
+
+function updateIdiomDisplay() {
+  if (idiomView === 'letters') {
+    updateIdiomLetterGrid();
+    if (idiomLetterGrid) idiomLetterGrid.style.display = 'grid';
+    if (idiomList) idiomList.style.display = 'none';
+    if (idiomBackToLetters) idiomBackToLetters.style.display = 'none';
+    if (idiomSubtitle) idiomSubtitle.textContent = 'Choose a letter';
+  } else {
+    updateIdiomWordList(idiomCurrentLetter);
+    if (idiomLetterGrid) idiomLetterGrid.style.display = 'none';
+    if (idiomList) idiomList.style.display = 'block';
+    if (idiomBackToLetters) idiomBackToLetters.style.display = 'block';
+    if (idiomSubtitle) idiomSubtitle.textContent = idiomCurrentLetter ? `Idioms starting with ${idiomCurrentLetter}` : 'Choose a letter';
+  }
+}
+
+function updateIdiomLetterGrid() {
+  if (!idiomLetterGrid) return;
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  idiomLetterGrid.innerHTML = letters.map((letter) => {
+    const count = (IDIOM_VOCABULARY || []).filter((p) => p.trim().charAt(0).toUpperCase() === letter).length;
+    return `<button type="button" class="toffle-letter-btn" data-letter="${letter}" title="${letter} (${count} idioms)">${letter}</button>`;
+  }).join('');
+}
+
+function updateIdiomWordList(letter) {
+  if (!idiomList || !letter) return;
+  const phrases = (IDIOM_VOCABULARY || []).filter((p) => p.trim().charAt(0).toUpperCase() === letter.toUpperCase());
+  idiomList.innerHTML = phrases.map((phrase) => {
+    const key = phrase.trim().toLowerCase();
+    const known = idiomKnown.has(key);
+    const displayPhrase = phrase.trim().charAt(0).toUpperCase() + phrase.trim().slice(1);
+    return `
+      <li class="toffle-item ${known ? 'toffle-item--known' : ''}" data-word="${(phrase || '').replace(/"/g, '&quot;')}">
+        <div class="toffle-item-text">
+          <span class="toffle-item-word">${displayPhrase}</span>
+          <span class="toffle-item-translation" data-word="${(phrase || '').replace(/"/g, '&quot;')}"></span>
+        </div>
+        <button type="button" class="toffle-pronounce-btn" data-word="${(phrase || '').replace(/"/g, '&quot;')}" aria-label="Pronounce">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+        </button>
+        <button type="button" class="toffle-item-known-btn" title="${known ? 'Mark as unknown' : 'I know this idiom'}" aria-label="${known ? 'Mark as unknown' : 'I know this idiom'}">
+          ${known ? '✓' : '○'}
+        </button>
+      </li>
+    `;
+  }).join('');
+  loadIdiomTranslations(letter);
+}
+
+async function loadIdiomTranslations(letter) {
+  if (!idiomList || !letter) return;
+  const phrases = (IDIOM_VOCABULARY || []).filter((p) => p.trim().charAt(0).toUpperCase() === letter.toUpperCase());
+  const CONCURRENCY = 3;
+  const queue = [...phrases];
+  async function run() {
+    while (queue.length > 0) {
+      const phrase = queue.shift();
+      if (!phrase) continue;
+      try {
+        const result = await fetchChineseTranslation(phrase.trim());
+        const primary = result?.primary || '';
+        idiomList.querySelectorAll('.toffle-item-translation').forEach((el) => {
+          if (el.dataset.word === phrase) el.textContent = primary;
+        });
+      } catch (_) {}
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, phrases.length) }, () => run()));
+}
+
+function handleIdiomLetterGridClick(e) {
+  const btn = e.target.closest('.toffle-letter-btn');
+  if (!btn) return;
+  const letter = btn.dataset.letter;
+  if (!letter) return;
+  navStack.push(getCurrentView());
+  idiomView = 'letter';
+  idiomCurrentLetter = letter;
+  updateIdiomDisplay();
+}
+
+function idiomShowLetterGrid() {
+  idiomView = 'letters';
+  idiomCurrentLetter = null;
+  updateIdiomDisplay();
+}
+
+function handleIdiomListClick(e) {
+  const item = e.target.closest('.toffle-item');
+  if (!item) return;
+  const phrase = item.dataset?.word ? item.dataset.word.replace(/&quot;/g, '"') : (item.querySelector('.toffle-item-word')?.textContent || '').trim();
+  if (!phrase) return;
+  if (e.target.closest('.toffle-pronounce-btn')) {
+    e.preventDefault();
+    audioPlayer.speakTts(phrase, 'en-US');
+    return;
+  }
+  if (e.target.closest('.toffle-item-known-btn')) {
+    e.preventDefault();
+    toggleIdiomKnown(phrase);
+  } else {
+    searchWord(phrase);
+  }
+}
+
+function toggleIdiomKnown(phrase) {
+  const key = String(phrase).trim().toLowerCase();
+  if (!key) return;
+  if (idiomKnown.has(key)) {
+    idiomKnown.delete(key);
+  } else {
+    idiomKnown.add(key);
+  }
+  saveIdiomKnown();
+  updateIdiomDisplay();
 }
 
 // Expose to global scope for inline handlers

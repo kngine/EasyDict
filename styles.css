@@ -1222,16 +1222,58 @@ a {
   border-color: var(--primary-200);
 }
 
-.toffle-item-word {
+.toffle-item-text {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toffle-item-word {
   font-size: 1.15rem;
   font-weight: 500;
   color: var(--gray-700);
 }
 
+.toffle-item-translation {
+  font-size: 0.875rem;
+  color: var(--gray-500);
+  line-height: 1.3;
+}
+
 .toffle-item--known .toffle-item-word {
   text-decoration: line-through;
   color: var(--gray-400);
+}
+
+.toffle-pronounce-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--gray-400);
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.toffle-pronounce-btn:hover {
+  color: var(--primary-500);
+  background: var(--primary-50);
+}
+
+.toffle-pronounce-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .toffle-item-known-btn {
@@ -1488,11 +1530,53 @@ a {
   flex-shrink: 0;
 }
 
-.notebook-item-word {
+.notebook-item-text {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notebook-item-word {
   font-size: 1.25rem;
   font-weight: 500;
   color: var(--gray-700);
+}
+
+.notebook-item-translation {
+  font-size: 0.875rem;
+  color: var(--gray-500);
+  line-height: 1.3;
+}
+
+.notebook-pronounce-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--gray-400);
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.notebook-pronounce-btn:hover {
+  color: var(--primary-500);
+  background: var(--primary-50);
+}
+
+.notebook-pronounce-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .notebook-item-delete {
