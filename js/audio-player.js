@@ -1,6 +1,6 @@
 /**
  * Audio Player Module
- * Handles pronunciation audio playback
+ * Handles pronunciation audio playback (URL and TTS fallback)
  */
 
 class AudioPlayer {
@@ -22,7 +22,7 @@ class AudioPlayer {
       return;
     }
 
-    // Stop any currently playing audio
+    // Stop any currently playing audio (URL or TTS)
     this.stop();
 
     try {
@@ -69,9 +69,54 @@ class AudioPlayer {
   }
 
   /**
-   * Stop current audio playback
+   * Speak text using browser Speech Synthesis (TTS). Improves coverage when API has no audio.
+   * @param {string} text - Text to speak
+   * @param {string} [lang='en-US'] - Language code (e.g. 'en-US', 'zh-CN')
+   */
+  speakTts(text, lang = 'en-US') {
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      console.warn('No text for TTS');
+      return;
+    }
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      console.warn('Speech Synthesis not supported');
+      return;
+    }
+
+    this.stop();
+
+    this.isLoading = true;
+    this.isPlaying = true;
+    this._notifyStateChange();
+
+    const utterance = new SpeechSynthesisUtterance(text.trim());
+    utterance.lang = lang;
+    utterance.rate = 0.9;
+
+    utterance.onstart = () => {
+      this.isLoading = false;
+      this._notifyStateChange();
+    };
+    utterance.onend = () => {
+      this.isPlaying = false;
+      this._notifyStateChange();
+    };
+    utterance.onerror = () => {
+      this.isPlaying = false;
+      this.isLoading = false;
+      this._notifyStateChange();
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }
+
+  /**
+   * Stop current audio playback (and any TTS)
    */
   stop() {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
     if (this.audio) {
       this.audio.pause();
       this.audio.currentTime = 0;

@@ -249,7 +249,7 @@ export async function lookupWord(word) {
 }
 
 /**
- * Get the best audio URL from phonetics (prefer US pronunciation)
+ * Get the best audio URL from phonetics (prefer US, then UK, then any)
  * @param {Array} phonetics - Array of phonetic objects
  * @returns {string|null} Audio URL or null
  */
@@ -258,16 +258,22 @@ export function getBestAudioUrl(phonetics) {
     return null;
   }
 
-  // First try to find US pronunciation
-  const usAudio = phonetics.find(p => 
-    p.audio && (p.audio.includes('-us') || p.audio.includes('/us/'))
-  );
-  if (usAudio?.audio) {
-    return usAudio.audio;
-  }
+  const hasAudio = (p) => p && p.audio && String(p.audio).trim() !== '';
 
-  // Fall back to any available audio
-  const anyAudio = phonetics.find(p => p.audio && p.audio.trim() !== '');
+  // 1. Prefer US pronunciation
+  const usAudio = phonetics.find(p =>
+    hasAudio(p) && (String(p.audio).includes('-us') || String(p.audio).includes('/us/'))
+  );
+  if (usAudio?.audio) return usAudio.audio;
+
+  // 2. Then UK
+  const ukAudio = phonetics.find(p =>
+    hasAudio(p) && (String(p.audio).includes('-uk') || String(p.audio).includes('/uk/'))
+  );
+  if (ukAudio?.audio) return ukAudio.audio;
+
+  // 3. Any available audio
+  const anyAudio = phonetics.find(hasAudio);
   return anyAudio?.audio || null;
 }
 

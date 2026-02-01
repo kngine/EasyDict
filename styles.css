@@ -1113,6 +1113,10 @@ a {
   transition: background var(--transition-fast), transform var(--transition-fast);
 }
 
+.learn-toffle-btn + .learn-toffle-btn {
+  margin-top: var(--space-3);
+}
+
 .learn-toffle-btn:hover {
   background: var(--primary-600);
 }

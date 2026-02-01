@@ -35,7 +35,7 @@
             <span class="title-icon">📖</span>
             EasyDict
           </h1>
-          <p class="app-subtitle">Comprehensive English Dictionary and Translation</p>
+          <p class="app-subtitle">Your bilingual dictionary companion</p>
         </div>
         <div class="header-buttons">
           <button id="shareBtn" class="header-btn share-btn" title="Share" style="display: none;">
@@ -196,12 +196,16 @@
         <!-- Ask AI Link -->
         <a id="googleLink" class="google-link-card" href="#" target="_blank" rel="noopener noreferrer">
           <div class="card-header">
-            <span class="card-icon">
-              <svg viewBox="0 0 24 24" width="20" height="20">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            <span class="card-icon" title="Gemini">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                <defs>
+                  <linearGradient id="gemini-icon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#8E44AD"/>
+                    <stop offset="50%" style="stop-color:#4285F4"/>
+                    <stop offset="100%" style="stop-color:#00D4AA"/>
+                  </linearGradient>
+                </defs>
+                <path fill="url(#gemini-icon-gradient)" d="M12 2l2.4 7.4h7.6l-6 4.6 2.3 7-6.3-4.6-6.3 4.6 2.3-7-6-4.6h7.6z"/>
               </svg>
             </span>
             <span class="card-title">Ask AI</span>
@@ -238,6 +242,7 @@
             </div>
           </div>
           <button id="learnToffleBtn" class="learn-toffle-btn">Learn TOFFLE</button>
+          <button id="learnGreBtn" class="learn-toffle-btn">Learn GRE</button>
         </div>
 
         <!-- Search History -->
@@ -282,6 +287,17 @@
           </div>
           <div id="toffleLetterGrid" class="toffle-letter-grid"></div>
           <ul id="toffleList" class="toffle-list" style="display: none;"></ul>
+        </div>
+
+        <!-- GRE Vocabulary -->
+        <div id="greSection" class="toffle-section gre-section" style="display: none;">
+          <div class="toffle-header">
+            <h3 class="toffle-title">GRE Vocabulary</h3>
+            <p class="toffle-subtitle" id="greSubtitle">Choose a letter</p>
+            <button type="button" id="greBackToLetters" class="toffle-back-to-letters" style="display: none;">← Back to letters</button>
+          </div>
+          <div id="greLetterGrid" class="toffle-letter-grid"></div>
+          <ul id="greList" class="toffle-list" style="display: none;"></ul>
         </div>
       </div>
     </main>

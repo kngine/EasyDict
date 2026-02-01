@@ -10,6 +10,9 @@ import { analyzeWordRoot, ComponentType } from './js/word-root-analyzer.js';
 import { analyzeWordUsage, UsageScenario } from './js/word-usage-analyzer.js';
 import { TOEFL_VOCABULARY } from './js/toefl-vocabulary.js';
 
+// GRE vocabulary loaded on first use so a missing file doesn't break the app
+let GRE_VOCABULARY = [];
+
 // DOM Elements
 const searchInput = document.getElementById('searchInput');
 const searchBtn = document.getElementById('searchBtn');
@@ -37,7 +40,16 @@ const notebookAddBtn = document.getElementById('notebookAddBtn');
 const notebookAddLabel = document.getElementById('notebookAddLabel');
 const learnToffleBtn = document.getElementById('learnToffleBtn');
 const toffleSection = document.getElementById('toffleSection');
+const toffleLetterGrid = document.getElementById('toffleLetterGrid');
+const toffleBackToLetters = document.getElementById('toffleBackToLetters');
+const toffleSubtitle = document.getElementById('toffleSubtitle');
 const toffleList = document.getElementById('toffleList');
+const learnGreBtn = document.getElementById('learnGreBtn');
+const greSection = document.getElementById('greSection');
+const greLetterGrid = document.getElementById('greLetterGrid');
+const greBackToLetters = document.getElementById('greBackToLetters');
+const greSubtitle = document.getElementById('greSubtitle');
+const greList = document.getElementById('greList');
 
 // Result elements
 const resultWord = document.getElementById('resultWord');
@@ -72,19 +84,147 @@ const MAX_HISTORY_SIZE = 20;
 const HISTORY_STORAGE_KEY = 'easydict_search_history';
 const NOTEBOOK_STORAGE_KEY = 'easydict_notebook';
 const TOFFLE_KNOWN_STORAGE_KEY = 'easydict_toffle_known';
+const GRE_KNOWN_STORAGE_KEY = 'easydict_gre_known';
+
+/** @type {Set<string>} - GRE words user has marked as known */
+let greKnown = new Set();
+/** 'letters' = 26-letter grid, 'letter' = word list for one letter */
+let greView = 'letters';
+/** Current letter when greView === 'letter' (e.g. 'A') */
+let greCurrentLetter = null;
+
+/** Navigation stack for Back: each entry is { view, letter? }. Back pops and shows previous view. */
+let navStack = [];
+
+/**
+ * @returns {{ view: string, letter?: string }} Current view descriptor
+ */
+function getCurrentView() {
+  if (resultsContainer && resultsContainer.style.display === 'flex') return { view: 'results' };
+  if (notebookSection && notebookSection.style.display === 'block') return { view: 'notebook' };
+  if (historySection && historySection.style.display === 'block') return { view: 'history' };
+  if (toffleSection && toffleSection.style.display === 'block') {
+    return toffleView === 'letter' ? { view: 'toffle-letter', letter: toffleCurrentLetter } : { view: 'toffle' };
+  }
+  if (greSection && greSection.style.display === 'block') {
+    return greView === 'letter' ? { view: 'gre-letter', letter: greCurrentLetter } : { view: 'gre' };
+  }
+  return { view: 'welcome' };
+}
+
+/**
+ * Show a previously saved view (used when Back pops from nav stack).
+ * @param {{ view: string, letter?: string }} desc
+ */
+function showView(desc) {
+  hideResults();
+  hideError();
+  showEmptyState();
+  if (searchInput) searchInput.value = '';
+  handleInputChange();
+  if (backBtn) backBtn.style.display = 'none';
+  if (shareBtn) shareBtn.style.display = 'none';
+  if (notebookAddBar) notebookAddBar.style.display = 'none';
+  window.history.replaceState({}, '', window.location.pathname);
+
+  if (desc.view === 'notebook') {
+    if (searchSection) searchSection.style.display = 'none';
+    if (backBtn) backBtn.style.display = 'flex';
+    if (welcomeSection) welcomeSection.style.display = 'none';
+    if (historySection) historySection.style.display = 'none';
+    if (toffleSection) toffleSection.style.display = 'none';
+    if (greSection) greSection.style.display = 'none';
+    if (notebookSection) notebookSection.style.display = 'block';
+    updateNotebookDisplay();
+  } else if (desc.view === 'toffle' || desc.view === 'toffle-letter') {
+    if (searchSection) searchSection.style.display = 'none';
+    if (backBtn) backBtn.style.display = 'flex';
+    if (welcomeSection) welcomeSection.style.display = 'none';
+    if (historySection) historySection.style.display = 'none';
+    if (notebookSection) notebookSection.style.display = 'none';
+    if (greSection) greSection.style.display = 'none';
+    if (toffleSection) {
+      toffleSection.style.display = 'block';
+      toffleView = desc.view === 'toffle-letter' ? 'letter' : 'letters';
+      toffleCurrentLetter = desc.view === 'toffle-letter' ? (desc.letter || null) : null;
+      updateToffleDisplay();
+    }
+  } else if (desc.view === 'gre' || desc.view === 'gre-letter') {
+    if (searchSection) searchSection.style.display = 'none';
+    if (backBtn) backBtn.style.display = 'flex';
+    if (welcomeSection) welcomeSection.style.display = 'none';
+    if (historySection) historySection.style.display = 'none';
+    if (notebookSection) notebookSection.style.display = 'none';
+    if (toffleSection) toffleSection.style.display = 'none';
+    if (greSection) {
+      greSection.style.display = 'block';
+      greView = desc.view === 'gre-letter' ? 'letter' : 'letters';
+      greCurrentLetter = desc.view === 'gre-letter' ? (desc.letter || null) : null;
+      updateGreDisplay();
+    }
+  } else if (desc.view === 'history') {
+    if (searchSection) searchSection.style.display = '';
+    if (notebookSection) notebookSection.style.display = 'none';
+    if (toffleSection) toffleSection.style.display = 'none';
+    if (greSection) greSection.style.display = 'none';
+    updateHistoryDisplay();
+    if (searchHistory.length > 0) {
+      if (welcomeSection) welcomeSection.style.display = 'none';
+      if (historySection) historySection.style.display = 'block';
+    } else {
+      if (welcomeSection) welcomeSection.style.display = 'block';
+      if (historySection) historySection.style.display = 'none';
+    }
+  } else {
+    // welcome
+    if (searchSection) searchSection.style.display = '';
+    if (notebookSection) notebookSection.style.display = 'none';
+    if (toffleSection) toffleSection.style.display = 'none';
+    if (greSection) greSection.style.display = 'none';
+    updateHistoryDisplay();
+    if (welcomeSection) welcomeSection.style.display = 'block';
+    if (historySection) historySection.style.display = 'none';
+  }
+}
+
+/**
+ * Push current view onto nav stack, then navigate to the given panel (same as goBackToHome but with history).
+ */
+function navigateTo(panel) {
+  const current = getCurrentView();
+  navStack.push(current);
+  goBackToHome(panel);
+}
+
+/**
+ * Go back to the previous page (pop nav stack). If stack is empty, go to welcome.
+ */
+function goBack() {
+  if (navStack.length === 0) {
+    goBackToHome();
+    return;
+  }
+  const previous = navStack.pop();
+  showView(previous);
+}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-  loadSearchHistory();
-  loadNotebook();
-  loadToffleKnown();
-  setupEventListeners();
-  registerServiceWorker();
-  checkUrlForWord();
-  // Always show welcome on app open (never default to history)
-  if (welcomeSection) welcomeSection.style.display = 'block';
-  if (historySection) historySection.style.display = 'none';
-  if (emptyState) emptyState.style.display = 'flex';
+  try {
+    loadSearchHistory();
+    loadNotebook();
+    loadToffleKnown();
+    loadGreKnown();
+    setupEventListeners();
+    registerServiceWorker();
+    checkUrlForWord();
+    // Always show welcome on app open (never default to history)
+    if (welcomeSection) welcomeSection.style.display = 'block';
+    if (historySection) historySection.style.display = 'none';
+    if (emptyState) emptyState.style.display = 'flex';
+  } catch (err) {
+    console.error('EasyDict init error:', err);
+  }
 });
 
 /**
@@ -119,57 +259,61 @@ async function registerServiceWorker() {
  */
 function setupEventListeners() {
   // Search
-  searchBtn.addEventListener('click', handleSearch);
-  searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
-  });
-  searchInput.addEventListener('input', handleInputChange);
+  if (searchBtn) searchBtn.addEventListener('click', handleSearch);
+  if (searchInput) {
+    searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleSearch(); });
+    searchInput.addEventListener('input', handleInputChange);
+  }
 
   // Clear button
-  clearBtn.addEventListener('click', () => {
-    searchInput.value = '';
-    clearBtn.style.display = 'none';
-    searchInput.focus();
+  if (clearBtn) clearBtn.addEventListener('click', () => {
+    if (searchInput) searchInput.value = '';
+    if (clearBtn) clearBtn.style.display = 'none';
+    if (searchInput) searchInput.focus();
   });
 
-  // Back button - return to home/history view
-  backBtn.addEventListener('click', goBackToHome);
+  // Back button - go to previous page (pop nav stack)
+  if (backBtn) backBtn.addEventListener('click', goBack);
 
   // History button - show history panel
-  historyBtn.addEventListener('click', () => goBackToHome('history'));
+  if (historyBtn) historyBtn.addEventListener('click', () => navigateTo('history'));
 
   // Notebook button - show notebook panel
-  notebookBtn.addEventListener('click', () => goBackToHome('notebook'));
+  if (notebookBtn) notebookBtn.addEventListener('click', () => navigateTo('notebook'));
 
   // Learn TOFFLE button - show TOFFLE vocabulary page
-  if (learnToffleBtn) learnToffleBtn.addEventListener('click', () => goBackToHome('toffle'));
+  if (learnToffleBtn) learnToffleBtn.addEventListener('click', () => navigateTo('toffle'));
+
+  // Learn GRE button - show GRE vocabulary page
+  if (learnGreBtn) learnGreBtn.addEventListener('click', () => navigateTo('gre'));
 
   // Share button
-  shareBtn.addEventListener('click', handleShare);
+  if (shareBtn) shareBtn.addEventListener('click', handleShare);
 
   // Add to Notebook button
-  notebookAddBtn.addEventListener('click', handleNotebookToggle);
+  if (notebookAddBtn) notebookAddBtn.addEventListener('click', handleNotebookToggle);
 
   // Error dismiss
-  dismissError.addEventListener('click', hideError);
+  if (dismissError) dismissError.addEventListener('click', hideError);
 
   // Audio player
-  playAudioBtn.addEventListener('click', handlePlayAudio);
-  audioPlayer.setStateChangeCallback(updateAudioButtonState);
+  if (playAudioBtn) playAudioBtn.addEventListener('click', handlePlayAudio);
+  if (audioPlayer && audioPlayer.setStateChangeCallback) audioPlayer.setStateChangeCallback(updateAudioButtonState);
 
   // History
-  clearHistoryBtn.addEventListener('click', clearHistory);
+  if (clearHistoryBtn) clearHistoryBtn.addEventListener('click', clearHistory);
 
   // Notebook
-  clearNotebookBtn.addEventListener('click', clearNotebook);
+  if (clearNotebookBtn) clearNotebookBtn.addEventListener('click', clearNotebook);
   setupNotebookDragDrop();
   setupNotebookItemClick();
 
   if (toffleList) toffleList.addEventListener('click', handleToffleListClick);
   if (toffleLetterGrid) toffleLetterGrid.addEventListener('click', handleToffleLetterGridClick);
-  if (toffleBackToLetters) toffleBackToLetters.addEventListener('click', toffleShowLetterGrid);
+  if (toffleBackToLetters) toffleBackToLetters.addEventListener('click', () => goBack());
+  if (greList) greList.addEventListener('click', handleGreListClick);
+  if (greLetterGrid) greLetterGrid.addEventListener('click', handleGreLetterGridClick);
+  if (greBackToLetters) greBackToLetters.addEventListener('click', () => goBack());
 }
 
 /**
@@ -180,10 +324,10 @@ function goBackToHome(panel) {
   hideResults();
   hideError();
   showEmptyState();
-  searchInput.value = '';
+  if (searchInput) searchInput.value = '';
   handleInputChange();
-  backBtn.style.display = 'none';
-  shareBtn.style.display = 'none';
+  if (backBtn) backBtn.style.display = 'none';
+  if (shareBtn) shareBtn.style.display = 'none';
   if (notebookAddBar) notebookAddBar.style.display = 'none';
   window.history.replaceState({}, '', window.location.pathname);
 
@@ -193,6 +337,7 @@ function goBackToHome(panel) {
     welcomeSection.style.display = 'none';
     historySection.style.display = 'none';
     if (toffleSection) toffleSection.style.display = 'none';
+    if (greSection) greSection.style.display = 'none';
     notebookSection.style.display = 'block';
     updateNotebookDisplay();
   } else if (panel === 'toffle') {
@@ -201,14 +346,41 @@ function goBackToHome(panel) {
     welcomeSection.style.display = 'none';
     historySection.style.display = 'none';
     notebookSection.style.display = 'none';
+    if (greSection) greSection.style.display = 'none';
     if (toffleSection) {
       toffleSection.style.display = 'block';
+      toffleView = 'letters';
+      toffleCurrentLetter = null;
       updateToffleDisplay();
+    }
+  } else if (panel === 'gre') {
+    if (searchSection) searchSection.style.display = 'none';
+    backBtn.style.display = 'flex';
+    welcomeSection.style.display = 'none';
+    historySection.style.display = 'none';
+    notebookSection.style.display = 'none';
+    if (toffleSection) toffleSection.style.display = 'none';
+    if (greSection) {
+      greSection.style.display = 'block';
+      greView = 'letters';
+      greCurrentLetter = null;
+      if (GRE_VOCABULARY.length === 0) {
+        import('./js/gre-vocabulary.js').then((m) => {
+          GRE_VOCABULARY = m.GRE_VOCABULARY || [];
+          updateGreDisplay();
+        }).catch(() => {
+          GRE_VOCABULARY = [];
+          updateGreDisplay();
+        });
+      } else {
+        updateGreDisplay();
+      }
     }
   } else if (panel === 'history') {
     if (searchSection) searchSection.style.display = '';
     notebookSection.style.display = 'none';
     if (toffleSection) toffleSection.style.display = 'none';
+    if (greSection) greSection.style.display = 'none';
     updateHistoryDisplay();
     if (searchHistory.length > 0) {
       welcomeSection.style.display = 'none';
@@ -221,6 +393,7 @@ function goBackToHome(panel) {
     if (searchSection) searchSection.style.display = '';
     notebookSection.style.display = 'none';
     if (toffleSection) toffleSection.style.display = 'none';
+    if (greSection) greSection.style.display = 'none';
     updateHistoryDisplay();
     welcomeSection.style.display = 'block';
     historySection.style.display = 'none';
@@ -357,8 +530,10 @@ function displayChineseResults(result) {
   // Word header - show Chinese word
   resultWord.textContent = result.chineseWord;
   phoneticText.textContent = '';
-  playAudioBtn.style.display = 'none';
   currentAudioUrl = null;
+  // Show play button for TTS (Chinese or English translation) to improve pronunciation coverage
+  const hasWordToSpeak = !!(result.chineseWord || result.englishTranslation);
+  playAudioBtn.style.display = hasWordToSpeak ? 'flex' : 'none';
   
   // Hide the Chinese translation card (we're translating FROM Chinese)
   document.querySelector('.chinese-translation-card').style.display = 'none';
@@ -463,13 +638,16 @@ function displayResults(result) {
     const phonetic = getPhoneticText(result.englishDefinitions[0]);
     phoneticText.textContent = phonetic || '';
     
-    // Audio
+    // Audio: API URL or TTS fallback (so pronunciation is available for more words)
     currentAudioUrl = getBestAudioUrl(result.englishDefinitions[0].phonetics);
-    playAudioBtn.style.display = currentAudioUrl ? 'flex' : 'none';
+    const hasWordToSpeak = !!(result.word || result.chineseWord || result.englishTranslation);
+    playAudioBtn.style.display = (currentAudioUrl || hasWordToSpeak) ? 'flex' : 'none';
   } else {
     phoneticText.textContent = '';
-    playAudioBtn.style.display = 'none';
     currentAudioUrl = null;
+    // Still show play button if we have text for TTS (e.g. Chinese lookup with English translation)
+    const hasWordToSpeak = !!(result.word || result.chineseWord || result.englishTranslation);
+    playAudioBtn.style.display = hasWordToSpeak ? 'flex' : 'none';
   }
   
   // Show Chinese translation card (may have been hidden by Chinese search)
@@ -722,11 +900,23 @@ function displayWordUsage(result) {
 }
 
 /**
- * Handle play audio button click
+ * Handle play audio button click (API audio or TTS fallback)
  */
 function handlePlayAudio() {
   if (currentAudioUrl) {
     audioPlayer.toggle(currentAudioUrl);
+    return;
+  }
+  // TTS fallback when API has no audio – improves pronunciation coverage
+  const text = currentResult?.isChinese
+    ? (currentResult.chineseWord || currentResult.englishTranslation)
+    : (currentResult?.word || currentResult?.englishTranslation || currentResult?.chineseWord);
+  if (!text) return;
+  if (audioPlayer.isPlaying) {
+    audioPlayer.stop();
+  } else {
+    const lang = currentResult?.isChinese ? 'zh-CN' : 'en-US';
+    audioPlayer.speakTts(text, lang);
   }
 }
 
@@ -755,6 +945,9 @@ function hideLoading() {
 }
 
 function showResults() {
+  if (getCurrentView().view !== 'results') {
+    navStack.push(getCurrentView());
+  }
   resultsContainer.style.display = 'flex';
   emptyState.style.display = 'none';
   backBtn.style.display = 'flex';
@@ -1137,6 +1330,7 @@ function handleToffleLetterGridClick(e) {
   if (!btn) return;
   const letter = btn.dataset.letter;
   if (!letter) return;
+  navStack.push(getCurrentView());
   toffleView = 'letter';
   toffleCurrentLetter = letter;
   updateToffleDisplay();
@@ -1156,6 +1350,114 @@ function handleToffleListClick(e) {
   if (e.target.closest('.toffle-item-known-btn')) {
     e.preventDefault();
     toggleToffleKnown(word);
+  } else {
+    searchWord(word);
+  }
+}
+
+// GRE (GRE vocabulary)
+function loadGreKnown() {
+  try {
+    const stored = localStorage.getItem(GRE_KNOWN_STORAGE_KEY);
+    if (stored) {
+      const arr = JSON.parse(stored);
+      greKnown = new Set(arr.map((w) => String(w).toLowerCase()));
+    }
+  } catch (error) {
+    console.error('Failed to load GRE known words:', error);
+    greKnown = new Set();
+  }
+}
+
+function saveGreKnown() {
+  try {
+    localStorage.setItem(GRE_KNOWN_STORAGE_KEY, JSON.stringify([...greKnown]));
+  } catch (error) {
+    console.error('Failed to save GRE known words:', error);
+  }
+}
+
+function toggleGreKnown(word) {
+  const key = String(word).trim().toLowerCase();
+  if (!key) return;
+  if (greKnown.has(key)) {
+    greKnown.delete(key);
+  } else {
+    greKnown.add(key);
+  }
+  saveGreKnown();
+  updateGreDisplay();
+}
+
+function updateGreDisplay() {
+  if (greView === 'letters') {
+    updateGreLetterGrid();
+    if (greLetterGrid) greLetterGrid.style.display = 'grid';
+    if (greList) greList.style.display = 'none';
+    if (greBackToLetters) greBackToLetters.style.display = 'none';
+    if (greSubtitle) greSubtitle.textContent = 'Choose a letter';
+  } else {
+    updateGreWordList(greCurrentLetter);
+    if (greLetterGrid) greLetterGrid.style.display = 'none';
+    if (greList) greList.style.display = 'block';
+    if (greBackToLetters) greBackToLetters.style.display = 'block';
+    if (greSubtitle) greSubtitle.textContent = greCurrentLetter ? `Words starting with ${greCurrentLetter}` : 'Choose a letter';
+  }
+}
+
+function updateGreLetterGrid() {
+  if (!greLetterGrid) return;
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  greLetterGrid.innerHTML = letters.map((letter) => {
+    const count = (GRE_VOCABULARY || []).filter((w) => w.charAt(0).toUpperCase() === letter).length;
+    return `<button type="button" class="toffle-letter-btn" data-letter="${letter}" title="${letter} (${count} words)">${letter}</button>`;
+  }).join('');
+}
+
+function updateGreWordList(letter) {
+  if (!greList || !letter) return;
+  const words = (GRE_VOCABULARY || []).filter((w) => w.charAt(0).toUpperCase() === letter.toUpperCase());
+  greList.innerHTML = words.map((word) => {
+    const key = word.toLowerCase();
+    const known = greKnown.has(key);
+    const inNotebook = notebook.some((item) => item.toLowerCase() === key);
+    const displayWord = word.charAt(0).toUpperCase() + word.slice(1);
+    return `
+      <li class="toffle-item ${known ? 'toffle-item--known' : ''} ${inNotebook ? 'toffle-item--in-notebook' : ''}" data-word="${(word || '').replace(/"/g, '&quot;')}">
+        <span class="toffle-item-word">${displayWord}</span>
+        ${inNotebook ? '<span class="toffle-item-notebook-icon" title="In your notebook"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/></svg></span>' : ''}
+        <button type="button" class="toffle-item-known-btn" title="${known ? 'Mark as unknown' : 'I know this word'}" aria-label="${known ? 'Mark as unknown' : 'I know this word'}">
+          ${known ? '✓' : '○'}
+        </button>
+      </li>
+    `;
+  }).join('');
+}
+
+function handleGreLetterGridClick(e) {
+  const btn = e.target.closest('.toffle-letter-btn');
+  if (!btn) return;
+  const letter = btn.dataset.letter;
+  if (!letter) return;
+  greView = 'letter';
+  greCurrentLetter = letter;
+  updateGreDisplay();
+}
+
+function greShowLetterGrid() {
+  greView = 'letters';
+  greCurrentLetter = null;
+  updateGreDisplay();
+}
+
+function handleGreListClick(e) {
+  const item = e.target.closest('.toffle-item');
+  if (!item) return;
+  const word = item.dataset?.word ? item.dataset.word.replace(/&quot;/g, '"') : (item.querySelector('.toffle-item-word')?.textContent || '').trim();
+  if (!word) return;
+  if (e.target.closest('.toffle-item-known-btn')) {
+    e.preventDefault();
+    toggleGreKnown(word);
   } else {
     searchWord(word);
   }
