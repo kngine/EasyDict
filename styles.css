@@ -1396,6 +1396,30 @@ a {
   margin-top: var(--space-1);
 }
 
+.notebook-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.notebook-action-btn {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--gray-600);
+  background: var(--gray-100);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.notebook-action-btn:hover {
+  background: var(--primary-50);
+  color: var(--primary-600);
+}
+
 .clear-notebook-btn {
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm);
@@ -1450,10 +1474,6 @@ a {
 
 .notebook-item-grip:active {
   cursor: grabbing;
-}
-
-.notebook-item-dragging {
-  opacity: 0.5;
 }
 
 .notebook-item-drag-over {

@@ -35,6 +35,9 @@ const notebookBtn = document.getElementById('notebookBtn');
 const notebookSection = document.getElementById('notebookSection');
 const notebookList = document.getElementById('notebookList');
 const clearNotebookBtn = document.getElementById('clearNotebookBtn');
+const exportNotebookBtn = document.getElementById('exportNotebookBtn');
+const importNotebookBtn = document.getElementById('importNotebookBtn');
+const importNotebookInput = document.getElementById('importNotebookInput');
 const notebookAddBar = document.getElementById('notebookAddBar');
 const notebookAddBtn = document.getElementById('notebookAddBtn');
 const notebookAddLabel = document.getElementById('notebookAddLabel');
@@ -305,6 +308,9 @@ function setupEventListeners() {
 
   // Notebook
   if (clearNotebookBtn) clearNotebookBtn.addEventListener('click', clearNotebook);
+  if (exportNotebookBtn) exportNotebookBtn.addEventListener('click', exportNotebook);
+  if (importNotebookBtn) importNotebookBtn.addEventListener('click', () => importNotebookInput?.click());
+  if (importNotebookInput) importNotebookInput.addEventListener('change', handleImportNotebookFile);
   setupNotebookDragDrop();
   setupNotebookItemClick();
 
@@ -1110,6 +1116,66 @@ function clearNotebook() {
   updateNotebookDisplay();
 }
 
+/**
+ * Export notebook as a local JSON file (download).
+ */
+function exportNotebook() {
+  const data = {
+    app: 'EasyDict',
+    exportedAt: new Date().toISOString(),
+    words: [...notebook]
+  };
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `easydict-notebook-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Handle file selected for import (merge words into notebook).
+ * @param {Event} e - change event from file input
+ */
+function handleImportNotebookFile(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      const words = Array.isArray(parsed) ? parsed : (parsed?.words ?? []);
+      if (!Array.isArray(words)) {
+        showError('Invalid format: expected an array of words or { words: [...] }');
+        return;
+      }
+      const seen = new Set(notebook.map(w => w.toLowerCase()));
+      let added = 0;
+      for (const w of words) {
+        const word = typeof w === 'string' ? w.trim() : String(w).trim();
+        if (!word) continue;
+        const key = word.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        notebook.push(word);
+        added++;
+      }
+      if (added > 0) {
+        saveNotebook();
+        updateNotebookDisplay();
+        updateNotebookButtonState();
+      }
+    } catch (err) {
+      console.error('Import failed:', err);
+      showError('Could not read file. Use a valid JSON file (array of words or { words: [...] }).');
+    }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
 function updateNotebookDisplay() {
   if (notebook.length === 0) {
     notebookList.innerHTML = '<li class="notebook-empty">No words in your notebook yet. Search for a word and tap "Add to Notebook".</li>';
@@ -1119,7 +1185,7 @@ function updateNotebookDisplay() {
   clearNotebookBtn.style.display = 'block';
   notebookList.innerHTML = notebook.map((word, index) => `
     <li class="notebook-item" data-index="${index}">
-      <span class="notebook-item-grip" draggable="true" aria-label="Drag to reorder">
+      <span class="notebook-item-grip" draggable="true" aria-label="Hold to reorder">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z"/></svg>
       </span>
       <svg class="notebook-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1127,6 +1193,14 @@ function updateNotebookDisplay() {
         <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
       </svg>
       <span class="notebook-item-word" data-word="${(word || '').replace(/"/g, '&quot;')}">${word}</span>
+      <div class="notebook-item-reorder">
+        <button type="button" class="notebook-move-btn notebook-move-up" data-index="${index}" aria-label="Move up" ${index === 0 ? 'disabled' : ''}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 15l-6-6-6 6"/></svg>
+        </button>
+        <button type="button" class="notebook-move-btn notebook-move-down" data-index="${index}" aria-label="Move down" ${index === notebook.length - 1 ? 'disabled' : ''}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+      </div>
       <button class="notebook-item-delete" type="button" onclick="event.stopPropagation(); removeFromNotebook('${word.replace(/'/g, "\\'")}')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 6L6 18M6 6l12 12"/>
@@ -1202,36 +1276,85 @@ function setupNotebookDragDrop() {
     updateNotebookDisplay();
   });
 
-  // Touch support for mobile (no native DnD on touch): long-press on grip then drag to reorder
-  let touchStartIndex = null;
-  let touchStartY = 0;
-  let touchMovedEnough = false;
+  // Touch support for iPhone: long-press on grip only to start reorder, then drag; drop by Y position
+  let touchLongPressTimer = null;
+  let touchDragFromIndex = null;
+  let touchLastY = 0;
+  const LONG_PRESS_MS = 450;
+  const MOVE_THRESHOLD_PX = 18;
+
   notebookList.addEventListener('touchstart', (e) => {
-    const item = e.target.closest('.notebook-item');
+    const grip = e.target.closest('.notebook-item-grip');
+    if (!grip) return;
+    const item = grip.closest('.notebook-item');
     if (!item || item.classList.contains('notebook-empty')) return;
-    touchStartIndex = parseInt(item.dataset.index, 10);
-    touchStartY = e.touches[0].clientY;
-    touchMovedEnough = false;
+    const fromIndex = parseInt(item.dataset.index, 10);
+    touchLastY = e.touches[0].clientY;
+    touchLongPressTimer = setTimeout(() => {
+      touchLongPressTimer = null;
+      touchDragFromIndex = fromIndex;
+      item.classList.add('notebook-item-dragging');
+    }, LONG_PRESS_MS);
   }, { passive: true });
+
   notebookList.addEventListener('touchmove', (e) => {
-    if (touchStartIndex == null) return;
-    const dy = Math.abs(e.touches[0].clientY - touchStartY);
-    if (dy > 25) touchMovedEnough = true;
-  }, { passive: true });
+    if (touchLongPressTimer != null) {
+      const dy = Math.abs(e.touches[0].clientY - touchLastY);
+      if (dy > MOVE_THRESHOLD_PX) {
+        clearTimeout(touchLongPressTimer);
+        touchLongPressTimer = null;
+      }
+      return;
+    }
+    if (touchDragFromIndex != null) {
+      touchLastY = e.touches[0].clientY;
+      e.preventDefault();
+      notebookList.querySelectorAll('.notebook-item').forEach(el => el.classList.remove('notebook-item-drag-over'));
+      const items = notebookList.querySelectorAll('.notebook-item:not(.notebook-empty)');
+      for (const el of items) {
+        if (parseInt(el.dataset.index, 10) === touchDragFromIndex) continue;
+        const rect = el.getBoundingClientRect();
+        if (touchLastY >= rect.top && touchLastY <= rect.bottom) {
+          el.classList.add('notebook-item-drag-over');
+          break;
+        }
+      }
+    }
+  }, { passive: false });
+
   notebookList.addEventListener('touchend', (e) => {
-    const fromIndex = touchStartIndex;
-    const moved = touchMovedEnough;
-    touchStartIndex = null;
-    touchMovedEnough = false;
-    if (fromIndex == null || !moved) return;
-    const item = document.elementFromPoint(e.changedTouches[0].clientX, e.changedTouches[0].clientY)?.closest('.notebook-item');
-    if (!item || item.classList.contains('notebook-empty')) return;
-    const toIndex = parseInt(item.dataset.index, 10);
-    if (fromIndex === toIndex) return;
-    const [word] = notebook.splice(fromIndex, 1);
-    notebook.splice(toIndex, 0, word);
-    saveNotebook();
-    updateNotebookDisplay();
+    if (touchLongPressTimer != null) {
+      clearTimeout(touchLongPressTimer);
+      touchLongPressTimer = null;
+    }
+    if (touchDragFromIndex == null) return;
+    notebookList.querySelectorAll('.notebook-item').forEach(el => el.classList.remove('notebook-item-dragging', 'notebook-item-drag-over'));
+    const fromIndex = touchDragFromIndex;
+    touchDragFromIndex = null;
+    const items = notebookList.querySelectorAll('.notebook-item:not(.notebook-empty)');
+    let toIndex = fromIndex;
+    for (let i = 0; i < items.length; i++) {
+      const rect = items[i].getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      if (touchLastY <= mid) {
+        toIndex = i;
+        break;
+      }
+      toIndex = i;
+    }
+    if (fromIndex !== toIndex) {
+      const [word] = notebook.splice(fromIndex, 1);
+      notebook.splice(toIndex, 0, word);
+      saveNotebook();
+      updateNotebookDisplay();
+    }
+  }, { passive: true });
+
+  notebookList.addEventListener('touchcancel', () => {
+    if (touchLongPressTimer != null) clearTimeout(touchLongPressTimer);
+    touchLongPressTimer = null;
+    touchDragFromIndex = null;
+    notebookList.querySelectorAll('.notebook-item').forEach(el => el.classList.remove('notebook-item-dragging', 'notebook-item-drag-over'));
   }, { passive: true });
 }
 
@@ -1242,10 +1365,37 @@ function setupNotebookItemClick() {
     const item = e.target.closest('.notebook-item');
     if (!item || item.classList.contains('notebook-empty')) return;
     if (e.target.closest('.notebook-item-grip') || e.target.closest('.notebook-item-delete')) return;
+    // Move up / move down (touch-friendly reorder on iPhone)
+    const moveUp = e.target.closest('.notebook-move-up');
+    const moveDown = e.target.closest('.notebook-move-down');
+    if (moveUp && !moveUp.disabled) {
+      e.preventDefault();
+      moveNotebookItemUp(parseInt(moveUp.dataset.index, 10));
+      return;
+    }
+    if (moveDown && !moveDown.disabled) {
+      e.preventDefault();
+      moveNotebookItemDown(parseInt(moveDown.dataset.index, 10));
+      return;
+    }
     const wordEl = item.querySelector('.notebook-item-word');
     const word = wordEl?.dataset?.word ? wordEl.dataset.word.replace(/&quot;/g, '"') : (wordEl?.textContent || '').trim();
     if (word) searchWord(word);
   });
+}
+
+function moveNotebookItemUp(index) {
+  if (index <= 0) return;
+  [notebook[index - 1], notebook[index]] = [notebook[index], notebook[index - 1]];
+  saveNotebook();
+  updateNotebookDisplay();
+}
+
+function moveNotebookItemDown(index) {
+  if (index >= notebook.length - 1) return;
+  [notebook[index], notebook[index + 1]] = [notebook[index + 1], notebook[index]];
+  saveNotebook();
+  updateNotebookDisplay();
 }
 
 // TOFFLE (TOEFL vocabulary)

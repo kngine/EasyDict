@@ -273,7 +273,12 @@
               Notebook
             </h3>
             <p class="notebook-subtitle">Words you're learning</p>
-            <button id="clearNotebookBtn" class="clear-notebook-btn">Clear All</button>
+            <div class="notebook-actions">
+              <button type="button" id="exportNotebookBtn" class="notebook-action-btn" title="Save notebook as JSON file">Export</button>
+              <button type="button" id="importNotebookBtn" class="notebook-action-btn" title="Load words from a JSON file">Import</button>
+              <input type="file" id="importNotebookInput" accept=".json,application/json" hidden>
+              <button id="clearNotebookBtn" class="clear-notebook-btn">Clear All</button>
+            </div>
           </div>
           <ul id="notebookList" class="notebook-list"></ul>
         </div>
